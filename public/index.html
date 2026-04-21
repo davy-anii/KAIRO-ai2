@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#000000" />
+    <title>KAIRO Mobile</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-orbit bg-orbit--one" aria-hidden="true"></div>
+    <div class="bg-orbit bg-orbit--two" aria-hidden="true"></div>
+
+    <main class="app-stage">
+      <section class="device-shell" aria-label="KAIRO mobile app">
+
+
+        <!-- ─── Splash Screen ─── -->
+        <div id="kairo-splash" class="kairo-splash" aria-live="polite" aria-label="Loading KAIRO">
+          <div class="kairo-splash-inner">
+            <div class="splash-robot-icon" aria-hidden="true">
+              <div class="splash-robot-head"><span></span><span></span></div>
+              <div class="splash-robot-body"></div>
+            </div>
+            <div class="splash-brand">KAIRO</div>
+            <p class="splash-tagline">Your AI Assistant</p>
+            <div class="splash-dots" aria-hidden="true">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Greeting Overlay ─── -->
+        <div id="kairo-greeting-overlay" class="kairo-greeting-overlay is-hidden" aria-live="polite">
+          <div class="greeting-card">
+            <div class="greeting-wave">👋</div>
+            <h2 id="greeting-headline">Hey there!</h2>
+            <p id="greeting-subline">KAIRO is ready for you.</p>
+            <button id="greeting-start-btn" class="cta-button cta-button--full">Let's Chat →</button>
+          </div>
+        </div>
+
+        <div class="screen-stack">
+          <section class="screen screen--onboarding is-active" data-screen="onboarding">
+            <div class="screen-shell screen-shell--center">
+              <span class="brand-chip">KAIRO</span>
+              <div class="hero-art" aria-hidden="true">
+                <div class="hero-orb"></div>
+                <div class="robot">
+                  <div class="robot-halo"></div>
+                  <div class="robot-head">
+                    <span></span>
+                    <span></span>
+                  </div>
+                  <div class="robot-body"></div>
+                  <div class="robot-base"></div>
+                </div>
+              </div>
+              <h1 class="hero-title">How may I help you today?</h1>
+              <p class="hero-subtitle">Your personal AI assistant for everything</p>
+              <button class="cta-button" type="button" data-target="signin">Get Started</button>
+            </div>
+          </section>
+
+          <section class="screen screen--auth" data-screen="signin">
+            <div class="screen-shell auth-shell">
+              <div class="screen-head">
+                <p class="eyebrow">Secure Access</p>
+                <h2>Welcome Back</h2>
+                <p>Sign in to continue your flow with KAIRO.</p>
+              </div>
+
+              <form class="glass-card auth-card" id="signin-form">
+                <label class="field-label" for="signin-email">Email</label>
+                <input id="signin-email" name="email" type="email" placeholder="you@example.com" />
+
+                <label class="field-label" for="signin-password">Password</label>
+                <input id="signin-password" name="password" type="password" placeholder="••••••••" />
+
+                <div class="auth-row auth-row--split">
+                  <label class="check-row">
+                    <input type="checkbox" checked />
+                    <span>Remember me</span>
+                  </label>
+                  <button type="button" class="text-button" id="forgot-password-btn">Forgot Password?</button>
+                </div>
+
+                <button class="cta-button cta-button--full" type="submit">Login</button>
+
+                <div class="divider"><span>or continue with</span></div>
+
+                <div class="social-row">
+                  <button type="button" class="social-button" id="google-signin-btn">
+                    <svg width="16" height="16" viewBox="0 0 48 48" style="vertical-align:middle;margin-right:6px"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                    Google
+                  </button>
+                  <button type="button" class="social-button" id="apple-signin-btn">
+                    <svg width="14" height="16" viewBox="0 0 814 1000" style="vertical-align:middle;margin-right:6px;fill:currentColor"><path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165 40.8s-105.7-57.2-155.2-127.3C46.7 790.7 0 663 0 541.8c0-207.8 199.7-313 396-313 102.9 0 197.1 38.9 255.5 98.3 48.4 50.3 72 99.9 75.5 107.6 3.7 8.2 5.1 16 5.1 23.1zm-261-136.9c-2.6-42.5-11.2-84.5-38.9-119.4C452.7 47 397.3 19 346.5 19c-2.8 0-5.7.2-8.5.5 5.8 41.5 16.2 82.2 42.8 116.7 27.3 35.3 82.2 62.9 146.3 67.8z"/></svg>
+                    Apple
+                  </button>
+                </div>
+              </form>
+
+              <p class="auth-switch">
+                Don’t have an account?
+                <button type="button" class="text-button" data-target="signup">Sign Up</button>
+              </p>
+            </div>
+          </section>
+
+          <section class="screen screen--auth" data-screen="signup">
+            <div class="screen-shell auth-shell">
+              <div class="screen-head">
+                <p class="eyebrow">Get Started</p>
+                <h2>Create Account</h2>
+                <p>Set up your KAIRO workspace in seconds.</p>
+              </div>
+
+              <form class="glass-card auth-card" id="signup-form">
+                <label class="field-label" for="signup-name">Name</label>
+                <input id="signup-name" name="name" type="text" placeholder="Your name" />
+
+                <label class="field-label" for="signup-email">Email</label>
+                <input id="signup-email" name="email" type="email" placeholder="you@example.com" />
+
+                <label class="field-label" for="signup-password">Password</label>
+                <input id="signup-password" name="password" type="password" placeholder="Create a password" />
+
+                <label class="check-row">
+                  <input type="checkbox" checked />
+                  <span>I agree to the Terms &amp; Conditions</span>
+                </label>
+
+                <button class="cta-button cta-button--full" type="submit">Sign Up</button>
+
+                <div class="divider"><span>or continue with</span></div>
+
+                <div class="social-row">
+                  <button type="button" class="social-button" id="google-signup-btn">
+                    <svg width="16" height="16" viewBox="0 0 48 48" style="vertical-align:middle;margin-right:6px"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                    Continue with Google
+                  </button>
+                </div>
+              </form>
+
+              <p class="auth-switch">
+                Already have an account?
+                <button type="button" class="text-button" data-target="signin">Sign In</button>
+              </p>
+            </div>
+          </section>
+
+          <section class="screen screen--app" data-screen="home">
+            <div class="screen-shell screen-shell--chat">
+              <header class="kairo-topbar" aria-label="Home top bar">
+                <button type="button" class="kairo-icon-button" aria-label="Menu" id="home-menu-btn" aria-expanded="false" aria-controls="home-menu">
+                  <i data-lucide="menu" aria-hidden="true"></i>
+                </button>
+                <h2>KAIRO</h2>
+                <div class="kairo-topbar-right">
+                  <!-- New + Clear chat actions (shown only when chat active) -->
+                  <div class="home-chat-actions is-hidden" id="home-chat-actions">
+                    <button type="button" class="chip-button chip-button--new" id="home-new-chat-btn" aria-label="New chat">+</button>
+                    <button type="button" class="chip-button" id="home-clear-chat-btn">Clear</button>
+                  </div>
+                  <button type="button" class="avatar-button avatar-button--gemini" data-target="profile" aria-label="Open profile" id="avatar-button">U</button>
+                </div>
+              </header>
+
+              <section class="home-menu is-hidden" id="home-menu" aria-label="Menu options">
+                <button type="button" class="home-menu-item" id="home-menu-new-chat">New Chat</button>
+                <button type="button" class="home-menu-item" data-target="history">History</button>
+                <button type="button" class="home-menu-item" data-target="profile">Profile</button>
+                <button type="button" class="home-menu-item" data-target="signin">Sign Out</button>
+              </section>
+
+              <!-- Greeting: shown when no chat messages -->
+              <section class="kairo-greeting" id="kairo-home-greeting" aria-label="Greeting">
+                <p id="home-greeting">Hi there</p>
+                <h3>Where should we start?</h3>
+              </section>
+
+              <!-- Chat stream: shown once conversation begins -->
+              <div class="chat-stream" id="chat-stream" aria-live="polite"></div>
+
+              <!-- Full composer (same as old chat screen) -->
+              <form class="chat-composer" id="chat-form">
+                <div id="image-preview" class="image-preview is-hidden" aria-live="polite"></div>
+
+                <label class="sr-only" for="message">Message</label>
+                <textarea
+                  id="message"
+                  placeholder="Ask KAIRO anything..."
+                  rows="1"
+                  required
+                ></textarea>
+
+                <div class="composer-actions">
+                  <label class="attach-chip icon-chip" for="image-input" title="Attach image"><i data-lucide="plus" aria-hidden="true"></i></label>
+                  <input id="image-input" type="file" accept="image/*" hidden />
+                  <button id="stt-btn" type="button" class="chip-button icon-chip" title="Speech to text" aria-label="Speech to text"><i data-lucide="mic" aria-hidden="true"></i></button>
+                  <button id="speech-toggle" type="button" class="voice-chip icon-chip" aria-pressed="false" title="Text to speech" aria-label="Text to speech"><i data-lucide="audio-lines" aria-hidden="true"></i></button>
+                  <button id="send" type="submit" class="send-button" aria-label="Send message">Send</button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+
+          <section class="screen screen--app" data-screen="history">
+            <div class="screen-shell screen-shell--app">
+              <div class="screen-head screen-head--compact">
+                <div>
+                  <p class="eyebrow">History</p>
+                  <h2>Your Chats</h2>
+                </div>
+              </div>
+
+              <div class="glass-panel history-panel">
+                <div class="history-list" id="history-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="screen screen--app" data-screen="profile">
+            <div class="screen-shell screen-shell--app">
+              <div class="screen-head screen-head--compact">
+                <div>
+                  <p class="eyebrow">Profile</p>
+                  <h2>Personal Space</h2>
+                </div>
+              </div>
+
+              <section class="glass-panel profile-card">
+                <div class="profile-top">
+                  <div class="profile-avatar" id="profile-avatar">
+                    <img id="profile-photo" src="" alt="Profile photo" class="profile-photo is-hidden" />
+                    <span id="profile-initials">U</span>
+                  </div>
+                  <div class="profile-info">
+                    <h3 id="profile-name">User</h3>
+                    <p id="profile-email-display" class="profile-email"></p>
+                    <p id="profile-since">KAIRO member</p>
+                  </div>
+                </div>
+
+              </section>
+
+            </div>
+          </section>
+        </div>
+
+        <nav class="bottom-nav is-hidden" id="bottom-nav" aria-label="Primary navigation">
+          <button type="button" class="nav-item is-active" data-nav-target="home">
+            <i data-lucide="house" aria-hidden="true"></i>
+            <span>Home</span>
+          </button>
+          <button type="button" class="nav-item" data-nav-target="history">
+            <i data-lucide="history" aria-hidden="true"></i>
+            <span>History</span>
+          </button>
+          <button type="button" class="nav-item" data-nav-target="profile">
+            <i data-lucide="user-round" aria-hidden="true"></i>
+            <span>Profile</span>
+          </button>
+        </nav>
+      </section>
+    </main>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script type="module" src="firebase-auth.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
