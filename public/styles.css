@@ -269,10 +269,8 @@ button {
 }
 
 .screen-shell--chat {
-  gap: 10px;
-  padding-bottom: 104px;
-  display: flex;
-  flex-direction: column;
+  gap: 14px;
+  padding-bottom: 112px;
 }
 
 /* ─── Brand Chip ─── */
@@ -895,7 +893,6 @@ textarea:focus {
 /* ─── Chat Stream ─── */
 .screen-shell--chat .chat-stream {
   flex: 1;
-  min-height: 0;
 }
 
 .chat-stream {
@@ -1034,16 +1031,15 @@ textarea:focus {
 
 /* ─── Kairo Topbar ─── */
 .kairo-topbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
   align-items: center;
   gap: 10px;
-  min-height: 52px;
-  flex-shrink: 0;
+  min-height: 44px;
 }
 
 .kairo-topbar h2 {
   margin: 0;
-  flex: 1;
   text-align: center;
   font-size: 1.08rem;
   font-weight: 800;
@@ -1055,8 +1051,7 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 0;
 }
 
 .home-chat-actions {
@@ -1701,8 +1696,7 @@ textarea:focus {
 
   .device-shell {
     width: 100vw;
-    height: 100dvh;
-    min-height: 100vh;
+    height: 100vh;
     border-radius: 0;
     border: 0;
   }
@@ -1723,7 +1717,7 @@ textarea:focus {
   }
 
   .screen-shell--chat {
-    padding-bottom: 104px;
+    padding-bottom: 118px;
   }
 
   .gemini-home-shell {
@@ -1771,15 +1765,6 @@ textarea:focus {
     left: 10px;
     right: 10px;
     bottom: 10px;
-  }
-
-  .auth-card {
-    padding: 16px;
-    gap: 10px;
-  }
-
-  .social-row {
-    grid-template-columns: 1fr;
   }
 }
 
