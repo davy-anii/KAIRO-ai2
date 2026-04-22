@@ -695,20 +695,6 @@ document.getElementById("forgot-password-btn")?.addEventListener("click", () => 
   else alert("Firebase is still loading. Please wait a moment and try again.");
 });
 
-// ─── Google Sign In (Sign In screen) ───
-document.getElementById("google-signin-btn")?.addEventListener("click", () => {
-  const fb = window.__firebaseAuth;
-  if (fb) fb.googleSignIn();
-  else alert("Firebase is still loading. Please wait a moment and try again.");
-});
-
-// ─── Google Sign In (Sign Up screen) ───
-document.getElementById("google-signup-btn")?.addEventListener("click", () => {
-  const fb = window.__firebaseAuth;
-  if (fb) fb.googleSignIn();
-  else alert("Firebase is still loading. Please wait a moment and try again.");
-});
-
 speechToggleEl?.addEventListener("click", () => {
   state.autoSpeakEnabled = !state.autoSpeakEnabled;
   localStorage.setItem(STORAGE_VOICE, state.autoSpeakEnabled ? "on" : "off");
