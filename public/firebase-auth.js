@@ -105,7 +105,7 @@ function friendlyError(code) {
     "auth/popup-closed-by-user":      "", // silent
     "auth/cancelled-popup-request":   "", // silent
     "auth/unauthorized-domain":
-      "🚫 Google Sign-In is blocked on file:// — open the app via http://localhost:3000 in your browser instead.",
+      "🚫 This domain is not authorized for Google Sign-In. Please contact the developer to add it to Firebase Console.",
     "auth/operation-not-allowed":
       "⚙️ Google Sign-In is not enabled in Firebase Console. Enable it under Authentication → Sign-in methods.",
     "auth/account-exists-with-different-credential":
@@ -114,7 +114,9 @@ function friendlyError(code) {
       "⚙️ Firebase internal error. Make sure Google Sign-In is enabled in Firebase Console.",
     "auth/missing-or-invalid-nonce":  "❌ Auth nonce error. Please try again.",
     "auth/app-not-authorized":
-      "⚙️ This app is not authorized. Check your Firebase project settings."
+      "⚙️ This app is not authorized. Check your Firebase project settings.",
+    "auth/invalid-api-key":
+      "⚙️ Firebase API key is invalid. Check your Firebase configuration."
   };
   return map[code] || `❌ Something went wrong (${code || "unknown"}). Please try again.`;
 }
