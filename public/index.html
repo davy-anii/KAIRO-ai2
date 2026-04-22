@@ -180,14 +180,17 @@
                 <button type="button" class="home-menu-item" data-target="signin">Sign Out</button>
               </section>
 
-              <!-- Greeting: shown when no chat messages -->
-              <section class="kairo-greeting" id="kairo-home-greeting" aria-label="Greeting">
-                <p id="home-greeting">Hi there</p>
-                <h3>Where should we start?</h3>
-              </section>
+              <!-- Content area that grows to fill space -->
+              <div class="chat-content">
+                <!-- Greeting: shown when no chat messages -->
+                <section class="kairo-greeting" id="kairo-home-greeting" aria-label="Greeting">
+                  <p id="home-greeting">Good Morning, Ankit Karmakar 🌤</p>
+                  <h3>Where should we start?</h3>
+                </section>
 
-              <!-- Chat stream: shown once conversation begins -->
-              <div class="chat-stream" id="chat-stream" aria-live="polite"></div>
+                <!-- Chat stream: shown once conversation begins -->
+                <div class="chat-stream" id="chat-stream" aria-live="polite"></div>
+              </div>
 
               <!-- Full composer (same as old chat screen) -->
               <form class="chat-composer" id="chat-form">

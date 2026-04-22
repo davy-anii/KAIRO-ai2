@@ -270,7 +270,8 @@ button {
 
 .screen-shell--chat {
   gap: 14px;
-  padding-bottom: 112px;
+  padding-bottom: 18px;
+  justify-content: space-between;
 }
 
 /* ─── Brand Chip ─── */
@@ -1006,6 +1007,15 @@ textarea:focus {
   cursor: pointer;
   font-size: 0.72rem;
   font-weight: 700;
+}
+
+/* ─── Chat Content Area ─── */
+.chat-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ─── Chat Composer ─── */
