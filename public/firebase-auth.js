@@ -10,6 +10,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  getAdditionalUserInfo,
   GoogleAuthProvider,
   signOut,
   sendPasswordResetEmail,
@@ -104,7 +105,7 @@ function friendlyError(code) {
     "auth/popup-closed-by-user":      "", // silent
     "auth/cancelled-popup-request":   "", // silent
     "auth/unauthorized-domain":
-      "🚫 Domain not authorized in Firebase Console. Add this domain to Authorized Domains in Firebase Authentication settings.",
+      "🚫 Google Sign-In is blocked on file:// — open the app via http://localhost:3000 in your browser instead.",
     "auth/operation-not-allowed":
       "⚙️ Google Sign-In is not enabled in Firebase Console. Enable it under Authentication → Sign-in methods.",
     "auth/account-exists-with-different-credential":
