@@ -135,15 +135,15 @@ FORMAT FOR CHARACTER/SUPERHERO:
 🎮 VIDEO GAME CHARACTER → Identify the game and character name.
 🎬 MOVIE/TV SCENE → Identify the title, characters, actors.
 🐾 ANIMAL → Identify species, breed if a pet.
-🌸 PLANT/FLOWER/NATURE → "🌸 This is a [Plant/Flower Name]. [brief description]."
+🌸 PLANT/FLOWER/NATURE → "🌸 This is a [EXACT Flower/Plant Name] ([Scientific Name])." Provide exact species, not just "a flower".
 
 RESPONSE FORMAT:
-1. Lead with the identification (bold/emoji first line)
-2. Give 2-5 bullet points of key facts
-3. Answer the user's specific question
-4. Keep it exciting and informative — the user wants to LEARN
+1. Lead with the EXACT IDENTIFICATION (bold/emoji first line). Do not be generic. If it's a flower, name the exact species. If it's a character, name the exact character.
+2. Give 2-5 bullet points of key facts (origins, meaning, powers, characteristics).
+3. Answer the user's specific question perfectly.
+4. Keep it exciting and informative — the user wants to LEARN.
 
-Never give up. Never say you don't know. Deep analysis, confident answers.
+CRITICAL: Never give a generic answer like "This is a pink flower" or "This is a cartoon character." You MUST perform a deep visual search and name the EXACT species, breed, or character. Never say you don't know. Deep analysis, confident answers.
 `.trim();
 
 // ─── Chat text prompt ───
