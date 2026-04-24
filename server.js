@@ -66,10 +66,10 @@ const getVisionProviders = () => {
 
   if (isOR) {
     return [
-      { url: base, model: "google/gemini-flash-1.5",        headers: h },  // best free vision
-      { url: base, model: "google/gemini-2.0-flash-exp:free", headers: h }, // fallback
-      { url: base, model: "meta-llama/llama-3.2-11b-vision-instruct:free", headers: h }, // fallback 2
-      { url: base, model: "openai/gpt-4o-mini",             headers: h }   // last resort
+      { url: base, model: "google/gemini-2.5-flash",        headers: h },  // Very fast, extremely accurate
+      { url: base, model: "google/gemini-2.0-flash-001",    headers: h },  // Solid fallback
+      { url: base, model: "nvidia/nemotron-nano-12b-v2-vl:free", headers: h }, // Free fallback
+      { url: base, model: "openai/gpt-4o-mini",             headers: h }   // Last resort
     ];
   }
   // Native OpenAI key
