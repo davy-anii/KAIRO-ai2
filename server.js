@@ -135,6 +135,7 @@ FORMAT FOR CHARACTER/SUPERHERO:
 🎮 VIDEO GAME CHARACTER → Identify the game and character name.
 🎬 MOVIE/TV SCENE → Identify the title, characters, actors.
 🐾 ANIMAL → Identify species, breed if a pet.
+🌸 PLANT/FLOWER/NATURE → "🌸 This is a [Plant/Flower Name]. [brief description]."
 
 RESPONSE FORMAT:
 1. Lead with the identification (bold/emoji first line)
@@ -191,17 +192,20 @@ async function callVisionModel(messages, providers) {
         continue;
       }
 
-      // Reject replies that are clearly "I don't know" type responses
-      const refusals = [
-        "i don't know", "i cannot identify", "i can't identify",
-        "i'm not able", "i am not able", "unable to identify",
-        "cannot determine", "not sure who", "i cannot see"
-      ];
-      const lower = reply.toLowerCase();
-      if (refusals.some(r => lower.includes(r))) {
-        console.warn(`[KAIRO Vision] Model ${provider.model} refused — trying next`);
-        lastError = "Model refused identification";
-        continue;
+      // Reject replies that are clearly "I don't know" type responses, but ONLY if the reply is very short
+      // so we don't accidentally reject a detailed analysis that happens to contain these words.
+      if (reply.length < 150) {
+        const refusals = [
+          "i don't know", "i cannot identify", "i can't identify",
+          "i'm not able", "i am not able", "unable to identify",
+          "cannot determine", "not sure who", "i cannot see"
+        ];
+        const lower = reply.toLowerCase();
+        if (refusals.some(r => lower.includes(r))) {
+          console.warn(`[KAIRO Vision] Model ${provider.model} refused — trying next`);
+          lastError = "Model refused identification";
+          continue;
+        }
       }
 
       console.log(`[KAIRO Vision] Success with model: ${provider.model}`);
