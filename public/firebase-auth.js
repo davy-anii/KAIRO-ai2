@@ -17,22 +17,24 @@ import {
   onAuthStateChanged,
   updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ─── Firebase Config ───
 const firebaseConfig = {
-  apiKey: "AIzaSyA3dNPe3jMQ8CLj8kscirHEhaoIUhyxnm0",
-  authDomain: "kairo-8b9ce.firebaseapp.com",
-  projectId: "kairo-8b9ce",
-  storageBucket: "kairo-8b9ce.firebasestorage.app",
-  messagingSenderId: "685824038955",
-  appId: "1:685824038955:web:5d1230a958253b0ba8b26e",
-  measurementId: "G-9GFR9WRRPL"
+  apiKey: "AIzaSyC0BQN7u7E974tT67xPvjsIyT3S9JVRhsw",
+  authDomain: "kairo-3e6be.firebaseapp.com",
+  projectId: "kairo-3e6be",
+  storageBucket: "kairo-3e6be.firebasestorage.app",
+  messagingSenderId: "794908848748",
+  appId: "1:794908848748:web:5606f72c0439d1f319de49",
+  measurementId: "G-B3PFJ0T6FG"
 };
 
 // ─── Initialize Firebase ───
 const firebaseApp = initializeApp(firebaseConfig);
 const analytics  = getAnalytics(firebaseApp);
 const auth       = getAuth(firebaseApp);
+const db         = getFirestore(firebaseApp);
 const provider   = new GoogleAuthProvider();
 
 // Hint to show all Google accounts in picker
@@ -121,11 +123,49 @@ function friendlyError(code) {
   return map[code] || `❌ Something went wrong (${code || "unknown"}). Please try again.`;
 }
 
+// ─── Save User Data to Firestore ───
+async function saveUserToFirestore(user, additionalData = {}) {
+  try {
+    const userRef = doc(db, "users", user.uid);
+    const userData = {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || additionalData.name || user.email?.split("@")[0] || "User",
+      photoURL: user.photoURL || additionalData.photoURL || "",
+      createdAt: new Date().toISOString(),
+      lastSignIn: new Date().toISOString(),
+      ...additionalData
+    };
+    await setDoc(userRef, userData, { merge: true });
+    console.log("[KAIRO Firebase] User data saved to Firestore:", userData);
+  } catch (err) {
+    console.error("[KAIRO Firebase] Error saving user data:", err);
+  }
+}
+
+// ─── Fetch User Data from Firestore ───
+async function fetchUserFromFirestore(uid) {
+  try {
+    const userRef = doc(db, "users", uid);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      console.log("[KAIRO Firebase] User data fetched from Firestore:", userSnap.data());
+      return userSnap.data();
+    }
+  } catch (err) {
+    console.error("[KAIRO Firebase] Error fetching user data:", err);
+  }
+  return null;
+}
+
 // ─── Check redirect result on page load ───
 // (Handles Google redirect flow after returning from Google's page)
 getRedirectResult(auth)
-  .then((result) => {
+  .then(async (result) => {
     if (result?.user) {
+      // Save user data to Firestore
+      await saveUserToFirestore(result.user);
+      
       clearAuthErrors();
       const additionalInfo = getAdditionalUserInfo(result);
       const isNewUser = additionalInfo?.isNewUser || false;
@@ -187,6 +227,10 @@ export async function firebaseSignIn(email, password) {
 
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    
+    // Update last sign-in time in Firestore
+    await saveUserToFirestore(cred.user);
+    
     clearAuthErrors();
     if (window.__kairoGoHome) window.__kairoGoHome(cred.user, false);
   } catch (err) {
@@ -206,6 +250,10 @@ export async function firebaseSignUp(name, email, password) {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     if (name) await updateProfile(cred.user, { displayName: name });
+    
+    // Save user data to Firestore
+    await saveUserToFirestore(cred.user, { name, email });
+    
     clearAuthErrors();
     if (window.__kairoGoHome) window.__kairoGoHome(cred.user, true);
   } catch (err) {
@@ -238,6 +286,10 @@ export async function firebaseGoogleSignIn() {
     const result = await signInWithPopup(auth, provider);
     const additionalInfo = getAdditionalUserInfo(result);
     const isNewUser = additionalInfo?.isNewUser || false;
+    
+    // Save user data to Firestore
+    await saveUserToFirestore(result.user);
+    
     clearAuthErrors();
     if (window.__kairoGoHome) window.__kairoGoHome(result.user, isNewUser);
   } catch (err) {
@@ -291,5 +343,7 @@ window.__firebaseAuth = {
   googleSignIn:    firebaseGoogleSignIn,
   signOut:         firebaseSignOut,
   forgotPassword:  firebaseForgotPassword,
-  getCurrentUser:  () => auth.currentUser
+  getCurrentUser:  () => auth.currentUser,
+  fetchUserData:   fetchUserFromFirestore,
+  saveUserData:    saveUserToFirestore
 };

@@ -2,6 +2,45 @@ const STORAGE_PROFILE = "kairo_profile";
 const STORAGE_HISTORY = "kairo_history";
 const STORAGE_VOICE = "kairo_voice";
 
+// ─── Firestore helper functions ───
+async function saveHistoryToFirestore(userId, chatHistory) {
+  try {
+    if (!window.__firebaseAuth) {
+      console.warn("[KAIRO] Firebase not loaded yet");
+      return;
+    }
+    
+    // Save to Firestore via the firebase auth module
+    if (window.__firebaseAuth.saveUserData) {
+      await window.__firebaseAuth.saveUserData({ uid: userId }, { 
+        chatHistory: chatHistory.slice(0, 50),
+        lastUpdated: new Date().toISOString()
+      });
+      console.log("[KAIRO] Chat history saved to Firestore");
+    }
+  } catch (err) {
+    console.error("[KAIRO] Error saving chat history to Firestore:", err);
+  }
+}
+
+async function loadHistoryFromFirestore(userId) {
+  try {
+    if (!window.__firebaseAuth || !window.__firebaseAuth.fetchUserData) {
+      console.warn("[KAIRO] Firebase not loaded yet");
+      return null;
+    }
+    
+    const userData = await window.__firebaseAuth.fetchUserData(userId);
+    if (userData && userData.chatHistory) {
+      console.log("[KAIRO] Chat history loaded from Firestore");
+      return userData.chatHistory;
+    }
+  } catch (err) {
+    console.error("[KAIRO] Error loading chat history from Firestore:", err);
+  }
+  return null;
+}
+
 const screenEls = [...document.querySelectorAll("[data-screen]")];
 const navButtons = [...document.querySelectorAll("[data-nav-target]")];
 const targetButtons = [...document.querySelectorAll("[data-target]")];
@@ -95,6 +134,12 @@ function saveProfile() {
 
 function saveHistory() {
   localStorage.setItem(STORAGE_HISTORY, JSON.stringify(state.chatHistory.slice(0, 50)));
+  
+  // Also save to Firestore if user is authenticated
+  const currentUser = window.__firebaseAuth?.getCurrentUser?.();
+  if (currentUser) {
+    saveHistoryToFirestore(currentUser.uid, state.chatHistory);
+  }
 }
 
 function formatTime(date = new Date()) {
@@ -580,6 +625,17 @@ window.__kairoGoHome = function (user, isNewUser = false) {
     state.profile.photoURL = user.photoURL || "";
     saveProfile();
     renderProfile();
+    
+    // Load chat history from Firestore if available
+    loadHistoryFromFirestore(user.uid).then((firestoreHistory) => {
+      if (firestoreHistory && Array.isArray(firestoreHistory)) {
+        state.chatHistory = firestoreHistory;
+        renderHistoryLists();
+        console.log("[KAIRO] Chat history loaded from Firestore");
+      }
+    }).catch((err) => {
+      console.error("[KAIRO] Failed to load Firestore history:", err);
+    });
   }
   
   hideSplash();
