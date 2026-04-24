@@ -158,12 +158,13 @@ function formatDateLabel(value) {
 }
 
 function getGreeting() {
-  const hour = new Date().getHours();
-  const name = state.profile.name || "there";
-
-  if (hour < 12) return `Good Morning, ${name} ☀️`;
-  if (hour < 18) return `Good Afternoon, ${name} 🌤️`;
-  return `Good Evening, ${name} 🌙`;
+  const h    = new Date().getHours();
+  const name = (state.profile.name || "there").split(" ")[0];
+  if (h >= 0  && h < 5)  return `Hey ${name}! 🌙`;
+  if (h >= 5  && h < 12) return `Good Morning, ${name} ☀️`;
+  if (h >= 12 && h < 17) return `Good Afternoon, ${name} 🌤️`;
+  if (h >= 17 && h < 21) return `Good Evening, ${name} 🌕`;
+  return                          `Good Night, ${name} 🌚`;
 }
 
 function updateClock() {
@@ -231,20 +232,82 @@ function renderProfile() {
   }
 }
 
+// ─── Global TTS state tracker ───
+let _currentSpeakBtn   = null;
+let _currentSpeakText  = null;
+let _isSpeaking        = false;
+
 function stopSpeaking() {
-  if ("speechSynthesis" in window) {
-    window.speechSynthesis.cancel();
+  _isSpeaking = false;
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  if (_currentSpeakBtn) {
+    _currentSpeakBtn.textContent  = "Speak";
+    _currentSpeakBtn.classList.remove("is-speaking");
+    _currentSpeakBtn = null;
   }
+  _currentSpeakText = null;
 }
 
-function speakText(text) {
+function speakText(text, btn) {
   if (!("speechSynthesis" in window) || !text) return;
-  stopSpeaking();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 1;
-  utterance.pitch = 1;
-  utterance.volume = 1;
-  window.speechSynthesis.speak(utterance);
+
+  // ─── INTERRUPT: if already speaking this same text or any text, stop ───
+  if (_isSpeaking) {
+    stopSpeaking();
+    return;
+  }
+
+  // Update button state
+  _currentSpeakBtn  = btn || null;
+  _currentSpeakText = text;
+  _isSpeaking       = true;
+  if (btn) {
+    btn.textContent = "Stop";
+    btn.classList.add("is-speaking");
+  }
+
+  window.speechSynthesis.cancel(); // flush any stuck utterance
+
+  // Chrome bug: must create utterance AFTER cancel, with tiny delay
+  setTimeout(() => {
+    if (!_isSpeaking) return; // was stopped before delay fired
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate   = 1;
+    utterance.pitch  = 1;
+    utterance.volume = 1;
+
+    utterance.onend = () => {
+      _isSpeaking = false;
+      if (_currentSpeakBtn) {
+        _currentSpeakBtn.textContent = "Speak";
+        _currentSpeakBtn.classList.remove("is-speaking");
+        _currentSpeakBtn  = null;
+      }
+      _currentSpeakText = null;
+    };
+
+    utterance.onerror = (e) => {
+      if (e.error === "interrupted" || e.error === "canceled") return; // normal
+      _isSpeaking = false;
+      if (_currentSpeakBtn) {
+        _currentSpeakBtn.textContent = "Speak";
+        _currentSpeakBtn.classList.remove("is-speaking");
+        _currentSpeakBtn  = null;
+      }
+      _currentSpeakText = null;
+    };
+
+    // Chrome: keep synthesis alive on long text (fix for Chrome bug)
+    const keepAlive = setInterval(() => {
+      if (!_isSpeaking) { clearInterval(keepAlive); return; }
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+    }, 10000);
+
+    utterance.onend   = (orig => function(e) { clearInterval(keepAlive); orig.call(this, e); })(utterance.onend);
+    utterance.onerror = (orig => function(e) { clearInterval(keepAlive); orig.call(this, e); })(utterance.onerror);
+
+    window.speechSynthesis.speak(utterance);
+  }, 50);
 }
 
 function updateSpeechToggle() {
@@ -336,6 +399,83 @@ function clearChatStream() {
   chatStreamEl.innerHTML = "";
 }
 
+// ─── Lightweight Markdown → safe HTML renderer ───
+function parseMarkdown(raw) {
+  if (!raw) return "";
+
+  // 1. Escape raw HTML first to prevent XSS
+  const escaped = raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const lines = escaped.split("\n");
+  const out   = [];
+  let inList  = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+
+    // Headings: ### or ## or #
+    const headingMatch = line.match(/^(#{1,4})\s+(.+)/);
+    if (headingMatch) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      const level = Math.min(headingMatch[1].length + 3, 6); // h4–h6
+      out.push(`<h${level} class="md-heading">${inlineFormat(headingMatch[2])}</h${level}>`);
+      continue;
+    }
+
+    // Bullet list: lines starting with - * • ·
+    const bulletMatch = line.match(/^[\-\*•·]\s+(.+)/);
+    if (bulletMatch) {
+      if (!inList) { out.push("<ul class=\"md-list\">"); inList = true; }
+      out.push(`<li>${inlineFormat(bulletMatch[1])}</li>`);
+      continue;
+    }
+
+    // Numbered list: lines starting with 1. 2. etc
+    const numMatch = line.match(/^\d+\.\s+(.+)/);
+    if (numMatch) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      // Treat numbered items as list items for simplicity
+      out.push(`<ul class="md-list"><li>${inlineFormat(numMatch[1])}</li></ul>`);
+      continue;
+    }
+
+    // Close list if non-bullet line
+    if (inList && line.trim() !== "") { out.push("</ul>"); inList = false; }
+
+    // Blank line → paragraph break
+    if (line.trim() === "") {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push("<br>");
+      continue;
+    }
+
+    out.push(`<p class="md-para">${inlineFormat(line)}</p>`);
+  }
+
+  if (inList) out.push("</ul>");
+  return out.join("");
+}
+
+// Inline formatting: bold, italic, inline-code
+function inlineFormat(text) {
+  return text
+    // Bold+italic: ***text*** or ___text___
+    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    // Bold: **text** or __text__
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/__(.+?)__/g, "<strong>$1</strong>")
+    // Italic: *text* or _text_
+    .replace(/\*([^\*]+)\*/g, "<em>$1</em>")
+    .replace(/_([^_]+)_/g, "<em>$1</em>")
+    // Inline code: `code`
+    .replace(/`([^`]+)`/g, "<code class=\"md-code\">$1</code>")
+    // Em dash shorthand: --
+    .replace(/\s--\s/g, " — ");
+}
+
 function appendChatMessage(message) {
   const role = message.role;
   const text = message.text;
@@ -371,7 +511,11 @@ function appendChatMessage(message) {
       caption.textContent = text;
       content.appendChild(caption);
     }
+  } else if (role === "bot") {
+    // Bot messages: render markdown as HTML
+    content.innerHTML = parseMarkdown(text);
   } else {
+    // User messages: plain text (safe, no markdown)
     content.textContent = text;
   }
   messageNode.appendChild(content);
@@ -386,10 +530,10 @@ function appendChatMessage(message) {
     actions.className = "chat-actions";
 
     const speakButton = document.createElement("button");
-    speakButton.type = "button";
+    speakButton.type      = "button";
     speakButton.className = "speak-btn";
     speakButton.textContent = "Speak";
-    speakButton.addEventListener("click", () => speakText(text));
+    speakButton.addEventListener("click", () => speakText(text, speakButton));
 
     actions.appendChild(speakButton);
     messageNode.appendChild(actions);
@@ -536,8 +680,9 @@ function setScreen(screenName, options = {}) {
     renderProfile();
   }
 
-  if (screenName === "chat") {
-    setTimeout(() => messageEl.focus(), 340); // wait for transition
+  if (screenName === "home") {
+    // Focus the composer when landing on home screen
+    setTimeout(() => messageEl?.focus(), 340);
   }
 
   if (options.prefill) setComposerDraft(options.prefill);
@@ -617,29 +762,31 @@ window.__kairoSetProfile = function ({ name, email, photoURL }) {
   renderProfile();
 };
 
+// Called by firebase-auth.js to load Firestore chat history into app state
+window.__kairoLoadHistory = function (firestoreHistory) {
+  if (!firestoreHistory || !Array.isArray(firestoreHistory)) return;
+  // Merge: prefer Firestore data (it's the source of truth after deploy)
+  if (firestoreHistory.length > 0) {
+    state.chatHistory = firestoreHistory;
+    saveHistory();
+    renderHistoryLists();
+    renderProfile();
+    console.log("[KAIRO] Firestore chat history synced:", firestoreHistory.length, "sessions");
+  }
+};
+
 window.__kairoGoHome = function (user, isNewUser = false) {
   if (user) {
-    const name     = user.displayName || user.email?.split("@")[0] || "User";
+    const name = user.displayName || user.email?.split("@")[0] || "User";
     state.profile.name     = name;
     state.profile.email    = user.email    || "";
     state.profile.photoURL = user.photoURL || "";
     saveProfile();
     renderProfile();
-    
-    // Load chat history from Firestore if available
-    loadHistoryFromFirestore(user.uid).then((firestoreHistory) => {
-      if (firestoreHistory && Array.isArray(firestoreHistory)) {
-        state.chatHistory = firestoreHistory;
-        renderHistoryLists();
-        console.log("[KAIRO] Chat history loaded from Firestore");
-      }
-    }).catch((err) => {
-      console.error("[KAIRO] Failed to load Firestore history:", err);
-    });
   }
-  
+
   hideSplash();
-  
+
   if (isNewUser) {
     setTimeout(() => showGreeting(user), 80);
   } else {
@@ -751,6 +898,24 @@ document.getElementById("forgot-password-btn")?.addEventListener("click", () => 
   else alert("Firebase is still loading. Please wait a moment and try again.");
 });
 
+// ─── Google Sign-In / Sign-Up buttons ───
+["google-signin-btn", "google-signup-btn"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("click", () => {
+    const fb = window.__firebaseAuth;
+    if (fb) fb.googleSignIn();
+    else alert("Firebase is still loading. Please wait a moment.");
+  });
+});
+
+// ─── Apple Sign-In / Sign-Up buttons ───
+["apple-signin-btn", "apple-signup-btn"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("click", () => {
+    const fb = window.__firebaseAuth;
+    if (fb) fb.appleSignIn();
+    else alert("Firebase is still loading. Please wait a moment.");
+  });
+});
+
 speechToggleEl?.addEventListener("click", () => {
   state.autoSpeakEnabled = !state.autoSpeakEnabled;
   localStorage.setItem(STORAGE_VOICE, state.autoSpeakEnabled ? "on" : "off");
@@ -818,35 +983,47 @@ homeNewChatBtnEl?.addEventListener("click", () => {
 
 homeClearChatBtnEl?.addEventListener("click", () => {
   stopSpeaking();
+
   state.attachedImage.chat = null;
   state.attachedImage.home = null;
-  imageInputEl.value = "";
+  if (imageInputEl) imageInputEl.value = "";
   if (homeImageInputEl) homeImageInputEl.value = "";
   renderImagePreview("chat");
   renderImagePreview("home");
   setComposerDraft("");
 
+  // Close menu
+  closeHomeMenu();
+
   startNewSession();
   clearChatStream();
   appendChatMessage(state.currentMessages[0]);
+  updateHomeView();
+  renderProfile();
 });
 
 homeMenuNewChatEl?.addEventListener("click", () => {
   stopSpeaking();
   persistCurrentSession();
+
+  // Reset attached images
   state.attachedImage.chat = null;
   state.attachedImage.home = null;
-  imageInputEl.value = "";
+  if (imageInputEl) imageInputEl.value = "";
   if (homeImageInputEl) homeImageInputEl.value = "";
   renderImagePreview("chat");
   renderImagePreview("home");
   setComposerDraft("");
 
+  // Close menu first
+  closeHomeMenu();
+
+  // Start fresh session and show home screen with greeting
   startNewSession();
   clearChatStream();
   appendChatMessage(state.currentMessages[0]);
-  closeHomeMenu();
-  setScreen("chat");
+  updateHomeView();      // ← shows greeting, hides stale chat stream
+  renderProfile();       // ← refreshes greeting text with correct time
 });
 
 async function handleImageInputChange(mode) {
@@ -927,7 +1104,8 @@ async function submitComposer(mode) {
   appendChatMessage(userMsg);
 
   if (mode === "home") {
-    setScreen("chat");
+    // 'chat' screen no longer exists — home screen IS the chat screen
+    setScreen("home");
   }
 
   textEl.value = "";
@@ -1069,8 +1247,8 @@ function handleHistoryClick(event) {
   const sessionId = card.getAttribute("data-session-id");
   if (!sessionId) return;
 
-  loadSession(sessionId);
-  setScreen("chat");
+  loadSession(sessionId);   // loads messages + calls updateHomeView
+  setScreen("home");        // navigate to home (which is the chat screen)
 }
 
 recentActivityEl?.addEventListener("click", handleHistoryClick);
@@ -1091,11 +1269,9 @@ function updateHomeView() {
   const hasMessages = state.currentMessages.length > 1;
   if (hasMessages) {
     kairoHomeGreetingEl?.classList.add("is-hidden");
-    homeChatActionsEl?.classList.remove("is-hidden");
     chatStreamEl?.classList.remove("is-hidden");
   } else {
     kairoHomeGreetingEl?.classList.remove("is-hidden");
-    homeChatActionsEl?.classList.add("is-hidden");
     chatStreamEl?.classList.add("is-hidden");
   }
 }
@@ -1111,3 +1287,5 @@ clearChatStream();
 appendChatMessage(state.currentMessages[0]);
 
 setScreen("onboarding");
+
+

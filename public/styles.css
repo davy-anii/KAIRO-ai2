@@ -1041,16 +1041,18 @@ textarea:focus {
 
 /* ─── Kairo Topbar ─── */
 .kairo-topbar {
-  display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 44px;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 4px;
 }
 
 .kairo-topbar h2 {
-  margin: 0;
+  flex: 1;
   text-align: center;
+  margin: 0;
   font-size: 1.08rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -1064,35 +1066,27 @@ textarea:focus {
   gap: 0;
 }
 
+/* Completely hide the topbar chat-actions — moved to hamburger */
 .home-chat-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-right: 12px;
-}
-
-.home-chat-actions.is-hidden,
-.kairo-greeting.is-hidden,
-.chat-stream.is-hidden {
   display: none !important;
 }
 
-/* ─── Home Menu ─── */
+/* ─── Home Menu (Hamburger) ─── */
 .home-menu {
   position: absolute;
-  top: 58px;
-  left: 16px;
+  top: 60px;
+  left: 12px;
   z-index: 6;
-  width: min(220px, calc(100% - 32px));
-  padding: 8px;
-  border-radius: 18px;
+  width: min(240px, calc(100% - 24px));
+  padding: 6px;
+  border-radius: 20px;
   border: 1.5px solid rgba(255, 200, 0, 0.38);
   background:
     radial-gradient(circle at 15% 0%, rgba(255, 255, 255, 0.95), transparent 34%),
-    rgba(255, 250, 215, 0.92);
-  backdrop-filter: blur(24px) saturate(155%);
+    rgba(255, 250, 215, 0.96);
+  backdrop-filter: blur(28px) saturate(160%);
   box-shadow:
-    0 20px 34px rgba(180, 120, 0, 0.22),
+    0 24px 40px rgba(180, 120, 0, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -1102,21 +1096,50 @@ textarea:focus {
 
 .home-menu-item {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 200, 0, 0);
+  border-radius: 13px;
+  border: 1px solid transparent;
   background: transparent;
   color: #2a1800;
   text-align: left;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 140ms ease, border-color 140ms ease;
 }
 
 .home-menu-item:hover {
   background: rgba(255, 210, 0, 0.22);
   border-color: rgba(255, 190, 0, 0.3);
+}
+
+.home-menu-icon {
+  font-size: 1rem;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.home-menu-divider {
+  height: 1px;
+  margin: 4px 10px;
+  background: rgba(200, 150, 0, 0.2);
+  border-radius: 1px;
+}
+
+.home-menu-item--signout {
+  color: #8b0000;
+  opacity: 0.85;
+}
+
+.home-menu-item--signout:hover {
+  background: rgba(220, 60, 60, 0.1);
+  border-color: rgba(200, 50, 50, 0.2);
+  opacity: 1;
 }
 
 /* ─── Kairo Icon Button ─── */
@@ -1163,6 +1186,18 @@ textarea:focus {
 .kairo-greeting {
   margin-top: 22px;
   text-align: left;
+  /* Smooth show/hide */
+  transition: opacity 280ms ease, transform 280ms ease;
+  transform-origin: top left;
+}
+
+/* ─── HIDDEN STATE ─── */
+.kairo-greeting.is-hidden {
+  display: none !important;
+}
+
+.chat-stream.is-hidden {
+  display: none !important;
 }
 
 .kairo-greeting p {
@@ -1358,10 +1393,11 @@ textarea:focus {
 }
 
 /* ─── Composer Actions ─── */
+/* 4 icon chips + 1 send button that fills remaining space */
 .composer-actions {
   display: grid;
-  grid-template-columns: auto auto auto 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(3, 46px) 1fr;
+  gap: 8px;
   align-items: center;
 }
 
@@ -1975,5 +2011,217 @@ textarea:focus {
   color: rgba(80,55,0,0.7);
   margin: 0;
   line-height: 1.45;
+}
+
+
+/* ─── Social Auth (Google / Apple) ─── */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(80, 55, 0, 0.5);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(200, 140, 0, 0.22);
+}
+
+.social-auth-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.social-auth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 16px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  white-space: nowrap;
+}
+
+.social-auth-btn:hover {
+  transform: translateY(-1px);
+}
+
+.social-auth-btn--google {
+  color: #2a1a00;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1.5px solid rgba(200, 140, 0, 0.28);
+  box-shadow:
+    0 8px 22px rgba(180, 120, 0, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.social-auth-btn--google:hover {
+  background: #fff;
+  box-shadow:
+    0 12px 28px rgba(180, 120, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.social-auth-btn--apple {
+  color: #fff;
+  background: linear-gradient(145deg, #1a1a1a, #000);
+  border: 1.5px solid rgba(0, 0, 0, 0.7);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.social-auth-btn--apple:hover {
+  filter: brightness(1.18);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.36);
+}
+
+/* ─── Responsive Fixes (Cross-Platform) ─── */
+
+/* Use dvh (dynamic viewport height) for better Windows / Android support.
+   Falls back to svh then 100vh on older browsers. */
+html {
+  height: 100%;
+  height: 100dvh;
+}
+
+body {
+  height: 100%;
+  height: 100dvh;
+  /* Remove fixed overflow:hidden — let the device-shell clip instead */
+  overflow: hidden;
+}
+
+.app-stage {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  padding: clamp(0px, 2vw, 18px);
+  /* prevent stage from scrolling on Windows where scrollbar steals width */
+  overflow: hidden;
+}
+
+.device-shell {
+  /* Use svh so it won't expand behind address bar on mobile / Windows browser chrome */
+  width: min(100%, 430px);
+  /* clamp keeps it from being too short on small laptop screens */
+  height: clamp(500px, calc(100dvh - 36px), 932px);
+}
+
+/* Scrollbars on Windows are visible by default and steal 15-17px.
+   Use an overlay scrollbar approach for interior scroll areas. */
+.screen-shell,
+.chat-stream,
+.chat-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(200, 140, 0, 0.3) transparent;
+}
+
+.screen-shell::-webkit-scrollbar,
+.chat-stream::-webkit-scrollbar,
+.chat-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.screen-shell::-webkit-scrollbar-track,
+.chat-stream::-webkit-scrollbar-track,
+.chat-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.screen-shell::-webkit-scrollbar-thumb,
+.chat-stream::-webkit-scrollbar-thumb,
+.chat-content::-webkit-scrollbar-thumb {
+  background: rgba(200, 140, 0, 0.3);
+  border-radius: 999px;
+}
+
+/* Auth screen: make sure content is scrollable when windows is smaller */
+.screen--auth .screen-shell.auth-shell {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Tablet / small desktop (480–900px wide): stretch shell slightly */
+@media (min-width: 481px) and (max-width: 900px) {
+  .app-stage {
+    padding: 12px;
+  }
+  .device-shell {
+    width: min(96%, 430px);
+    height: clamp(500px, calc(100dvh - 24px), 932px);
+  }
+}
+
+/* Large desktop (> 900px): center shell nicely */
+@media (min-width: 901px) {
+  .app-stage {
+    padding: 24px;
+  }
+  .device-shell {
+    width: 430px;
+    height: min(calc(100dvh - 48px), 932px);
+  }
+}
+
+/* Mobile (<= 480px): full-bleed, no rounded corners */
+@media (max-width: 480px) {
+  .app-stage {
+    padding: 0;
+  }
+  .device-shell {
+    width: 100vw;
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+    border-radius: 0;
+    border: 0;
+  }
+  .social-auth-row {
+    gap: 8px;
+  }
+  .social-auth-btn {
+    font-size: 0.85rem;
+    padding: 0 10px;
+    gap: 6px;
+  }
+}
+
+/* Very short screens (landscape phones, small netbooks) */
+@media (max-height: 600px) {
+  .auth-shell {
+    padding-top: 10px;
+  }
+  .screen-head h2 {
+    font-size: 1.35rem;
+  }
+  .auth-card {
+    gap: 8px;
+    padding: 14px;
+  }
+  .hero-art {
+    width: 160px;
+    height: 160px;
+    margin: 4px 0;
+  }
+  .robot {
+    width: 120px;
+    height: 140px;
+  }
+  .hero-title {
+    font-size: 1.5rem;
+  }
 }
 

@@ -1,5 +1,7 @@
 // ─── KAIRO · Firebase Authentication ───
-// Uses Firebase v10 CDN (ES module)
+// Firebase v10 CDN (ES module)
+// Apple Sign-In: uses signInWithRedirect → lands on kairo-8b9ce.firebaseapp.com/__/auth/handler
+// Google Sign-In: popup with redirect fallback
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
@@ -12,58 +14,69 @@ import {
   getRedirectResult,
   getAdditionalUserInfo,
   GoogleAuthProvider,
+  OAuthProvider,
   signOut,
   sendPasswordResetEmail,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  setPersistence,
+  browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ─── Firebase Config ───
 const firebaseConfig = {
-  apiKey: "AIzaSyC0BQN7u7E974tT67xPvjsIyT3S9JVRhsw",
-  authDomain: "kairo-3e6be.firebaseapp.com",
-  projectId: "kairo-3e6be",
-  storageBucket: "kairo-3e6be.firebasestorage.app",
-  messagingSenderId: "794908848748",
-  appId: "1:794908848748:web:5606f72c0439d1f319de49",
-  measurementId: "G-B3PFJ0T6FG"
+  apiKey: "AIzaSyA3dNPe3jMQ8CLj8kscirHEhaoIUhyxnm0",
+  authDomain: "kairo-8b9ce.firebaseapp.com",   // must match the Apple callback domain
+  projectId: "kairo-8b9ce",
+  storageBucket: "kairo-8b9ce.firebasestorage.app",
+  messagingSenderId: "685824038955",
+  appId: "1:685824038955:web:5d1230a958253b0ba8b26e",
+  measurementId: "G-9GFR9WRRPL"
 };
 
-// ─── Initialize Firebase ───
+// ─── Initialize ───
 const firebaseApp = initializeApp(firebaseConfig);
 const analytics  = getAnalytics(firebaseApp);
 const auth       = getAuth(firebaseApp);
 const db         = getFirestore(firebaseApp);
-const provider   = new GoogleAuthProvider();
 
-// Hint to show all Google accounts in picker
-provider.setCustomParameters({ prompt: "select_account" });
+// Force persistent auth session across page reloads / redirects
+setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-// ─── Check if running on a proper HTTP origin ───
-function isFileProtocol() {
-  return location.protocol === "file:";
-}
+// ─── Providers ───
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
+
+const appleProvider = new OAuthProvider("apple.com");
+appleProvider.addScope("email");
+appleProvider.addScope("name");
+// Apple requires these locale params for the "name" scope to work
+appleProvider.setCustomParameters({ locale: "en" });
+
+// ─── Helpers ───
+const isFileProtocol = () => location.protocol === "file:";
 
 // ─── UI Helpers ───
 function showAuthError(msg, isSuccess = false) {
   document.querySelectorAll(".firebase-error").forEach((el) => el.remove());
+  if (!msg) return;
 
   const err = document.createElement("p");
   err.className = "firebase-error";
   err.textContent = msg;
-
-  if (isSuccess) {
-    err.style.cssText =
-      "color:#1a7a4a;font-size:0.85rem;font-weight:600;margin:0;padding:8px 12px;" +
-      "background:rgba(26,122,74,0.1);border-radius:10px;border:1px solid rgba(26,122,74,0.25);" +
-      "line-height:1.4;";
-  } else {
-    err.style.cssText =
-      "color:#a32b1a;font-size:0.85rem;font-weight:600;margin:0;padding:8px 12px;" +
-      "background:rgba(192,57,43,0.1);border-radius:10px;border:1px solid rgba(192,57,43,0.2);" +
-      "line-height:1.4;";
-  }
+  err.style.cssText = isSuccess
+    ? "color:#1a7a4a;font-size:0.85rem;font-weight:600;margin:0;padding:8px 12px;" +
+      "background:rgba(26,122,74,0.1);border-radius:10px;border:1px solid rgba(26,122,74,0.25);line-height:1.4;"
+    : "color:#a32b1a;font-size:0.85rem;font-weight:600;margin:0;padding:8px 12px;" +
+      "background:rgba(192,57,43,0.1);border-radius:10px;border:1px solid rgba(192,57,43,0.2);line-height:1.4;";
 
   const activeForm =
     document.querySelector(".screen--auth.is-active form") ||
@@ -90,9 +103,9 @@ function setButtonLoading(btn, loading, loadText = "Please wait…") {
   }
 }
 
-// ─── Friendly error messages ───
+// ─── Error Map ───
 function friendlyError(code) {
-  console.warn("[KAIRO Firebase] Auth error code:", code); // helpful for debugging
+  console.warn("[KAIRO Auth] error:", code);
   const map = {
     "auth/invalid-email":             "❌ Invalid email address.",
     "auth/user-not-found":            "❌ No account found with this email.",
@@ -102,137 +115,201 @@ function friendlyError(code) {
     "auth/weak-password":             "❌ Password must be at least 6 characters.",
     "auth/too-many-requests":         "⏳ Too many attempts. Wait a moment and retry.",
     "auth/network-request-failed":    "❌ Network error. Check your connection.",
-    "auth/popup-blocked":
-      "🚫 Popup was blocked by your browser. Allow popups for this site and try again.",
-    "auth/popup-closed-by-user":      "", // silent
-    "auth/cancelled-popup-request":   "", // silent
+    "auth/popup-blocked":             "🚫 Popup blocked. Trying redirect instead…",
+    "auth/popup-closed-by-user":      "",    // silent
+    "auth/cancelled-popup-request":   "",    // silent
     "auth/unauthorized-domain":
-      "🚫 This domain is not authorized for Google Sign-In. Please contact the developer to add it to Firebase Console.",
+      "🚫 This domain is not authorized in Firebase Console (Authentication → Settings → Authorized domains).",
     "auth/operation-not-allowed":
-      "⚙️ Google Sign-In is not enabled in Firebase Console. Enable it under Authentication → Sign-in methods.",
+      "⚙️ Sign-in method not enabled. Enable it in Firebase Console → Authentication → Sign-in methods.",
     "auth/account-exists-with-different-credential":
-      "❌ An account already exists with this email using a different sign-in method.",
+      "❌ Account exists with a different sign-in method. Try signing in with the original method.",
     "auth/internal-error":
-      "⚙️ Firebase internal error. Make sure Google Sign-In is enabled in Firebase Console.",
-    "auth/missing-or-invalid-nonce":  "❌ Auth nonce error. Please try again.",
-    "auth/app-not-authorized":
-      "⚙️ This app is not authorized. Check your Firebase project settings.",
-    "auth/invalid-api-key":
-      "⚙️ Firebase API key is invalid. Check your Firebase configuration."
+      "⚙️ Internal error. Ensure the sign-in method is enabled in Firebase Console.",
+    "auth/missing-or-invalid-nonce":  "❌ Auth nonce error. Try again.",
+    "auth/app-not-authorized":        "⚙️ App not authorized. Check Firebase project settings.",
+    "auth/invalid-api-key":           "⚙️ Invalid Firebase API key.",
+    "auth/redirect-cancelled-by-user": "",   // silent
+    "auth/web-storage-unsupported":
+      "🚫 Third-party cookies are blocked by your browser. Enable them and try again."
   };
-  return map[code] || `❌ Something went wrong (${code || "unknown"}). Please try again.`;
+  return map[code] ?? `❌ Something went wrong (${code ?? "unknown"}). Please try again.`;
 }
 
-// ─── Save User Data to Firestore ───
-async function saveUserToFirestore(user, additionalData = {}) {
+// ─── Firestore: Save / Merge User Profile ───
+async function saveUserToFirestore(user, extraData = {}) {
+  if (!user?.uid) return;
   try {
-    const userRef = doc(db, "users", user.uid);
-    const userData = {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName || additionalData.name || user.email?.split("@")[0] || "User",
-      photoURL: user.photoURL || additionalData.photoURL || "",
-      createdAt: new Date().toISOString(),
-      lastSignIn: new Date().toISOString(),
-      ...additionalData
+    const ref  = doc(db, "users", user.uid);
+    const snap = await getDoc(ref);
+
+    const base = {
+      uid:         user.uid,
+      email:       user.email ?? extraData.email ?? "",
+      displayName: user.displayName ?? extraData.name ?? user.email?.split("@")[0] ?? "User",
+      photoURL:    user.photoURL ?? extraData.photoURL ?? "",
+      lastSignIn:  new Date().toISOString(),
+      ...extraData
     };
-    await setDoc(userRef, userData, { merge: true });
-    console.log("[KAIRO Firebase] User data saved to Firestore:", userData);
+
+    if (!snap.exists()) {
+      // First time — set createdAt too
+      await setDoc(ref, { ...base, createdAt: new Date().toISOString() });
+    } else {
+      // Merge — don't overwrite createdAt or existing chatHistory
+      await setDoc(ref, base, { merge: true });
+    }
+    console.log("[KAIRO Firestore] User profile saved:", base.displayName);
   } catch (err) {
-    console.error("[KAIRO Firebase] Error saving user data:", err);
+    console.error("[KAIRO Firestore] saveUserToFirestore error:", err);
   }
 }
 
-// ─── Fetch User Data from Firestore ───
+// ─── Firestore: Fetch Full User Data (profile + chatHistory) ───
 async function fetchUserFromFirestore(uid) {
+  if (!uid) return null;
   try {
-    const userRef = doc(db, "users", uid);
-    const userSnap = await getDoc(userRef);
-    if (userSnap.exists()) {
-      console.log("[KAIRO Firebase] User data fetched from Firestore:", userSnap.data());
-      return userSnap.data();
+    const snap = await getDoc(doc(db, "users", uid));
+    if (snap.exists()) {
+      console.log("[KAIRO Firestore] User data fetched for:", uid);
+      return snap.data();
     }
   } catch (err) {
-    console.error("[KAIRO Firebase] Error fetching user data:", err);
+    console.error("[KAIRO Firestore] fetchUserFromFirestore error:", err);
   }
   return null;
 }
 
-// ─── Check redirect result on page load ───
-// (Handles Google redirect flow after returning from Google's page)
-getRedirectResult(auth)
-  .then(async (result) => {
-    if (result?.user) {
-      // Save user data to Firestore
-      await saveUserToFirestore(result.user);
-      
-      clearAuthErrors();
-      const additionalInfo = getAdditionalUserInfo(result);
-      const isNewUser = additionalInfo?.isNewUser || false;
-      if (window.__kairoGoHome) window.__kairoGoHome(result.user, isNewUser);
-    }
-  })
-  .catch((err) => {
-    const msg = friendlyError(err.code);
-    if (msg) showAuthError(msg);
-  });
+// ─── Post-Auth: load everything and navigate home ───
+async function onSignInSuccess(user, isNewUser = false) {
+  if (!user) return;
 
-// ─── Auth State Listener ───
-// Fires on page load to restore session & handle navigation
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    // User is signed in — sync profile
-    const displayName = user.displayName || user.email?.split("@")[0] || "User";
-    const email    = user.email    || "";
-    const photoURL = user.photoURL || "";
+  clearAuthErrors();
 
+  // 1) Save / update profile in Firestore
+  await saveUserToFirestore(user);
+
+  // 2) Pull full Firestore data and hydrate app state
+  const firestoreData = await fetchUserFromFirestore(user.uid);
+
+  if (firestoreData) {
+    // Sync profile fields (name, email, photo)
     if (window.__kairoSetProfile) {
-      window.__kairoSetProfile({ name: displayName, email, photoURL });
+      window.__kairoSetProfile({
+        name:     firestoreData.displayName || user.displayName || user.email?.split("@")[0] || "User",
+        email:    firestoreData.email    || user.email    || "",
+        photoURL: firestoreData.photoURL || user.photoURL || ""
+      });
     }
 
-    // Auto-navigate: show greeting then go to chat
-    const activeScreen = document.querySelector(".screen.is-active");
-    const authScreens  = ["onboarding", "signin", "signup"];
-    if (!activeScreen || authScreens.includes(activeScreen.dataset?.screen)) {
+    // Sync chat history if it exists in Firestore
+    if (firestoreData.chatHistory && Array.isArray(firestoreData.chatHistory)) {
+      if (window.__kairoLoadHistory) {
+        window.__kairoLoadHistory(firestoreData.chatHistory);
+      }
+      console.log("[KAIRO Firestore] Chat history loaded:", firestoreData.chatHistory.length, "sessions");
+    }
+  } else {
+    // No Firestore data yet — just set from Firebase user object
+    if (window.__kairoSetProfile) {
+      window.__kairoSetProfile({
+        name:     user.displayName || user.email?.split("@")[0] || "User",
+        email:    user.email    || "",
+        photoURL: user.photoURL || ""
+      });
+    }
+  }
+
+  // 3) Navigate
+  if (window.__kairoGoHome) {
+    window.__kairoGoHome(user, isNewUser);
+  }
+}
+
+// ─── getRedirectResult (runs on EVERY page load) ───
+// Handles the Apple (and Google fallback) redirect coming back from
+// https://kairo-8b9ce.firebaseapp.com/__/auth/handler
+(async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result?.user) {
+      console.log("[KAIRO Auth] Redirect result received for:", result.user.email);
+      const additional = getAdditionalUserInfo(result);
+      await onSignInSuccess(result.user, additional?.isNewUser ?? false);
+    }
+  } catch (err) {
+    // Swallow silent errors; surface real ones
+    const msg = friendlyError(err.code);
+    if (msg) {
+      console.error("[KAIRO Auth] getRedirectResult error:", err.code);
+      showAuthError(msg);
+    }
+  }
+})();
+
+// ─── onAuthStateChanged ───
+// Fires on every page load to restore the persisted session
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    console.log("[KAIRO Auth] Session restored for:", user.email);
+
+    // Hydrate profile immediately from Firebase user (fast path)
+    const displayName = user.displayName || user.email?.split("@")[0] || "User";
+    if (window.__kairoSetProfile) {
+      window.__kairoSetProfile({ name: displayName, email: user.email || "", photoURL: user.photoURL || "" });
+    }
+
+    // Then enrich from Firestore in the background
+    fetchUserFromFirestore(user.uid).then((data) => {
+      if (!data) return;
+      if (window.__kairoSetProfile) {
+        window.__kairoSetProfile({
+          name:     data.displayName || displayName,
+          email:    data.email       || user.email || "",
+          photoURL: data.photoURL    || user.photoURL || ""
+        });
+      }
+      if (data.chatHistory && Array.isArray(data.chatHistory) && window.__kairoLoadHistory) {
+        window.__kairoLoadHistory(data.chatHistory);
+      }
+    }).catch(() => {});
+
+    // Navigate if currently on an auth/onboarding screen
+    const active = document.querySelector(".screen.is-active");
+    const authScreens = ["onboarding", "signin", "signup"];
+    if (!active || authScreens.includes(active.dataset?.screen)) {
       if (window.__kairoGoHome) window.__kairoGoHome(user, false);
     } else {
-      // Already on an app screen — just hide the splash if visible
       if (window.__kairoHideSplash) window.__kairoHideSplash();
     }
   } else {
-    // User signed out — hide splash, go back to onboarding
-    if (window.__kairoHideSplash) window.__kairoHideSplash();
+    // Signed out
+    if (window.__kairoHideSplash)   window.__kairoHideSplash();
     if (window.__kairoHideGreeting) window.__kairoHideGreeting();
 
-    const activeScreen = document.querySelector(".screen.is-active");
-    const appScreens   = ["home", "chat", "history", "profile"];
-    if (activeScreen && appScreens.includes(activeScreen.dataset?.screen)) {
+    const active = document.querySelector(".screen.is-active");
+    const appScreens = ["home", "chat", "history", "profile"];
+    if (active && appScreens.includes(active.dataset?.screen)) {
       setTimeout(() => {
         if (window.__kairoSetScreen) window.__kairoSetScreen("onboarding");
       }, 100);
     } else {
-      // First load, no user — just hide the splash to show onboarding
+      // First load with no session — let the splash play, then show onboarding
       setTimeout(() => {
         if (window.__kairoHideSplash) window.__kairoHideSplash();
-      }, 1200); // let splash play for at least 1.2s before revealing onboarding
+      }, 1200);
     }
   }
 });
 
-// ─── Sign In ───
+// ─── Email/Password Sign In ───
 export async function firebaseSignIn(email, password) {
   clearAuthErrors();
   const btn = document.querySelector("#signin-form .cta-button[type='submit']");
   setButtonLoading(btn, true, "Signing in…");
-
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    
-    // Update last sign-in time in Firestore
-    await saveUserToFirestore(cred.user);
-    
-    clearAuthErrors();
-    if (window.__kairoGoHome) window.__kairoGoHome(cred.user, false);
+    await onSignInSuccess(cred.user, false);
   } catch (err) {
     const msg = friendlyError(err.code);
     if (msg) showAuthError(msg);
@@ -241,21 +318,15 @@ export async function firebaseSignIn(email, password) {
   }
 }
 
-// ─── Sign Up ───
+// ─── Email/Password Sign Up ───
 export async function firebaseSignUp(name, email, password) {
   clearAuthErrors();
   const btn = document.querySelector("#signup-form .cta-button[type='submit']");
   setButtonLoading(btn, true, "Creating account…");
-
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     if (name) await updateProfile(cred.user, { displayName: name });
-    
-    // Save user data to Firestore
-    await saveUserToFirestore(cred.user, { name, email });
-    
-    clearAuthErrors();
-    if (window.__kairoGoHome) window.__kairoGoHome(cred.user, true);
+    await onSignInSuccess(cred.user, true);
   } catch (err) {
     const msg = friendlyError(err.code);
     if (msg) showAuthError(msg);
@@ -264,40 +335,27 @@ export async function firebaseSignUp(name, email, password) {
   }
 }
 
-// ─── Google Sign In ───
-// Uses popup on HTTP, redirect on file:// (redirect won't fully work on file://)
+// ─── Google Sign In (popup → redirect fallback) ───
 export async function firebaseGoogleSignIn() {
   clearAuthErrors();
-
-  // Guard: file:// protocol will never work with Google OAuth
   if (isFileProtocol()) {
-    showAuthError(
-      "🚫 Google Sign-In requires the app to run on http://localhost:3000.\n" +
-      "Open your browser and go to: http://localhost:3000"
-    );
+    showAuthError("🚫 Google Sign-In requires the app to run on http://localhost:3000");
     return;
   }
 
-  const googleBtn = document.getElementById("google-signin-btn");
-  setButtonLoading(googleBtn, true, "Opening Google…");
+  const btn = document.getElementById("google-signin-btn") || document.getElementById("google-signup-btn");
+  setButtonLoading(btn, true, "Opening Google…");
 
   try {
-    // Try popup first
-    const result = await signInWithPopup(auth, provider);
-    const additionalInfo = getAdditionalUserInfo(result);
-    const isNewUser = additionalInfo?.isNewUser || false;
-    
-    // Save user data to Firestore
-    await saveUserToFirestore(result.user);
-    
-    clearAuthErrors();
-    if (window.__kairoGoHome) window.__kairoGoHome(result.user, isNewUser);
+    const result = await signInWithPopup(auth, googleProvider);
+    const additional = getAdditionalUserInfo(result);
+    await onSignInSuccess(result.user, additional?.isNewUser ?? false);
   } catch (err) {
-    // If popup is blocked, fall back to redirect
-    if (err.code === "auth/popup-blocked") {
+    if (err.code === "auth/popup-blocked" || err.code === "auth/popup-closed-by-user") {
+      // Fallback to redirect
       try {
-        await signInWithRedirect(auth, provider);
-        // after redirect, getRedirectResult() at top handles the result
+        await signInWithRedirect(auth, googleProvider);
+        // getRedirectResult() at top will handle the result after page reload
       } catch (redirectErr) {
         const msg = friendlyError(redirectErr.code);
         if (msg) showAuthError(msg);
@@ -307,7 +365,31 @@ export async function firebaseGoogleSignIn() {
       if (msg) showAuthError(msg);
     }
   } finally {
-    setButtonLoading(googleBtn, false);
+    setButtonLoading(btn, false);
+  }
+}
+
+// ─── Apple Sign In (always redirect — required for Apple OAuth on web) ───
+export async function firebaseAppleSignIn() {
+  clearAuthErrors();
+  if (isFileProtocol()) {
+    showAuthError("🚫 Apple Sign-In requires the app to run on http://localhost:3000");
+    return;
+  }
+
+  const btn = document.getElementById("apple-signin-btn") || document.getElementById("apple-signup-btn");
+  setButtonLoading(btn, true, "Redirecting to Apple…");
+
+  try {
+    // Apple REQUIRES redirect flow for web (popup is unreliable / blocked by Safari)
+    // This will redirect to: https://kairo-8b9ce.firebaseapp.com/__/auth/handler
+    // then back to your app's URL with the auth result in the URL fragment/state
+    await signInWithRedirect(auth, appleProvider);
+    // ↑ page navigates away; getRedirectResult() at the top handles the return
+  } catch (err) {
+    const msg = friendlyError(err.code);
+    if (msg) showAuthError(msg);
+    setButtonLoading(btn, false);
   }
 }
 
@@ -336,11 +418,12 @@ export async function firebaseForgotPassword(email) {
   }
 }
 
-// ─── Expose to global scope for app.js to call ───
+// ─── Global API (called by app.js) ───
 window.__firebaseAuth = {
   signIn:          firebaseSignIn,
   signUp:          firebaseSignUp,
   googleSignIn:    firebaseGoogleSignIn,
+  appleSignIn:     firebaseAppleSignIn,
   signOut:         firebaseSignOut,
   forgotPassword:  firebaseForgotPassword,
   getCurrentUser:  () => auth.currentUser,

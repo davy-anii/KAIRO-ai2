@@ -16,8 +16,20 @@
       "dest": "/server.js"
     },
     {
-      "src": "/(.*)",
+      "src": "/public/(.*)",
       "dest": "/public/$1"
+    },
+    {
+      "src": "/(styles\\.css|app\\.js|firebase-auth\\.js)",
+      "dest": "/public/$1"
+    },
+    {
+      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|webp))",
+      "dest": "/public/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/public/index.html"
     }
   ]
 }
