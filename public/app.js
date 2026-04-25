@@ -382,7 +382,10 @@ function startSpeechToText(textareaEl, triggerBtnEl) {
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
 
-  if (triggerBtnEl) triggerBtnEl.disabled = true;
+  if (triggerBtnEl) {
+    triggerBtnEl.classList.add("is-listening");
+    triggerBtnEl.disabled = true;
+  }
 
   recognition.onresult = (event) => {
     const transcript = event.results?.[0]?.[0]?.transcript?.trim();
@@ -395,12 +398,18 @@ function startSpeechToText(textareaEl, triggerBtnEl) {
   };
 
   recognition.onend = () => {
-    if (triggerBtnEl) triggerBtnEl.disabled = false;
+    if (triggerBtnEl) {
+      triggerBtnEl.classList.remove("is-listening");
+      triggerBtnEl.disabled = false;
+    }
     textareaEl.focus();
   };
 
   recognition.onerror = () => {
-    if (triggerBtnEl) triggerBtnEl.disabled = false;
+    if (triggerBtnEl) {
+      triggerBtnEl.classList.remove("is-listening");
+      triggerBtnEl.disabled = false;
+    }
   };
 
   recognition.start();

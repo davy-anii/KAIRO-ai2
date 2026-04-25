@@ -1684,6 +1684,19 @@ textarea:focus {
 }
 
 /* ─── Animations ─── */
+/* ─── Microphone Active Animation ─── */
+.is-listening {
+  animation: pulseListen 1s infinite alternate;
+  background: rgba(255, 60, 60, 0.15) !important;
+  border-color: rgba(255, 60, 60, 0.5) !important;
+  color: #c00 !important;
+}
+
+@keyframes pulseListen {
+  0% { box-shadow: 0 0 0 0 rgba(255, 60, 60, 0.4); }
+  100% { box-shadow: 0 0 0 8px rgba(255, 60, 60, 0); }
+}
+
 @keyframes float {
   0%,
   100% {
