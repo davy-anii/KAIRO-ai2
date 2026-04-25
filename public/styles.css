@@ -1393,10 +1393,8 @@ textarea:focus {
 }
 
 /* ─── Composer Actions ─── */
-/* 4 icon chips + 1 send button that fills remaining space */
 .composer-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 46px) 1fr;
+  display: flex;
   gap: 8px;
   align-items: center;
 }
@@ -1467,7 +1465,9 @@ textarea:focus {
 
 /* ─── Send Button ─── */
 .send-button {
+  flex: 1;
   min-height: 46px;
+  padding: 0 20px;
   border-radius: 16px;
   color: #2a1500;
   border: 1.5px solid rgba(255, 180, 0, 0.5);
