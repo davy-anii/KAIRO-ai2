@@ -611,19 +611,7 @@ function appendChatMessage(message) {
   meta.innerHTML = `<span>${formatTime(new Date(message.time || Date.now()))}</span>`;
   messageNode.appendChild(meta);
 
-  if (role === "bot") {
-    const actions = document.createElement("div");
-    actions.className = "chat-actions";
 
-    const speakButton = document.createElement("button");
-    speakButton.type      = "button";
-    speakButton.className = "speak-btn";
-    speakButton.textContent = "Speak";
-    speakButton.addEventListener("click", () => speakText(text, speakButton));
-
-    actions.appendChild(speakButton);
-    messageNode.appendChild(actions);
-  }
 
   chatStreamEl.appendChild(messageNode);
   chatStreamEl.scrollTop = chatStreamEl.scrollHeight;
