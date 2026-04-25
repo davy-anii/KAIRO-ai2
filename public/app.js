@@ -514,10 +514,18 @@ function appendChatMessage(message) {
   messageNode.appendChild(label);
 
   if (message.imageAttached) {
-    const imageHint = document.createElement("div");
-    imageHint.className = "chat-content";
-    imageHint.textContent = "[Image attached]";
-    messageNode.appendChild(imageHint);
+    if (message.attachedImageDataUrl) {
+      const img = document.createElement("img");
+      img.src = message.attachedImageDataUrl;
+      img.alt = "Attached image";
+      img.style.cssText = "width:100%;border-radius:12px;margin-bottom:8px;display:block;max-height:240px;object-fit:cover;border:1px solid rgba(0,0,0,0.1);";
+      messageNode.appendChild(img);
+    } else {
+      const imageHint = document.createElement("div");
+      imageHint.className = "chat-content";
+      imageHint.textContent = "[Image attached]";
+      messageNode.appendChild(imageHint);
+    }
   }
 
   const content = document.createElement("div");
@@ -625,7 +633,10 @@ function persistCurrentSession() {
     title: firstUser.slice(0, 48),
     preview: lastBot.slice(0, 90),
     timestamp: Date.now(),
-    messages: state.currentMessages
+    messages: state.currentMessages.map(m => {
+      const { attachedImageDataUrl, ...rest } = m;
+      return rest;
+    })
   };
 
   const index = state.chatHistory.findIndex((item) => item.id === session.id);
@@ -1122,7 +1133,8 @@ async function submitComposer(mode) {
     role: "user",
     text: message || "Image attached for solving.",
     time: Date.now(),
-    imageAttached: Boolean(attachedImage)
+    imageAttached: Boolean(attachedImage),
+    attachedImageDataUrl: attachedImage?.dataUrl || null
   };
 
   state.currentMessages.push(userMsg);
@@ -1136,6 +1148,13 @@ async function submitComposer(mode) {
   textEl.value = "";
   autoResizeTextarea(textEl);
   sendButtonEl.disabled = true;
+
+  // Clear the image preview immediately before sending to API
+  const requestImageDataUrl = attachedImage?.dataUrl || null;
+  state.attachedImage[mode] = null;
+  if (mode === "home" && homeImageInputEl) homeImageInputEl.value = "";
+  if (mode === "chat") imageInputEl.value = "";
+  renderImagePreview(mode);
 
   const typingNode = document.createElement("article");
   typingNode.className = "chat-message chat-message--bot";
@@ -1153,7 +1172,7 @@ async function submitComposer(mode) {
       body: JSON.stringify({
         message: message || "Please solve the image I attached.",
         history: buildModelHistory(),
-        imageDataUrl: attachedImage?.dataUrl || null
+        imageDataUrl: requestImageDataUrl
       })
     });
 
@@ -1233,11 +1252,6 @@ async function submitComposer(mode) {
     }
 
     persistCurrentSession();
-
-    state.attachedImage[mode] = null;
-    if (mode === "home" && homeImageInputEl) homeImageInputEl.value = "";
-    if (mode === "chat") imageInputEl.value = "";
-    renderImagePreview(mode);
   } catch {
     typingNode.remove();
     const botMsg = {
