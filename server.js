@@ -16,21 +16,25 @@ const normalizeText = (v) =>
     .trim();
 
 // ─── Provider configs ───
-const getTextProvider = () => {
+const getTextProviders = () => {
   const apiKey = process.env.OPENAI_API_KEY || "";
   const isOR = apiKey.startsWith("sk-or-v1-");
+  const base = "https://openrouter.ai/api/v1/chat/completions";
+  const h = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
+
   if (isOR) {
-    return {
-      url: "https://openrouter.ai/api/v1/chat/completions",
-      model: process.env.OPENAI_MODEL || "google/gemma-4-31b-it:free",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }
-    };
+    return [
+      { url: base, model: process.env.OPENAI_MODEL || "google/gemma-4-31b-it:free", headers: h },
+      { url: base, model: "google/gemini-2.0-flash-exp:free", headers: h },
+      { url: base, model: "google/gemini-2.5-flash", headers: h },
+      { url: base, model: "nvidia/nemotron-nano-12b-v2-vl:free", headers: h }
+    ];
   }
-  return {
+  return [{
     url: "https://api.openai.com/v1/chat/completions",
-    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }
-  };
+    model: process.env.OPENAI_MODEL || "google/gemma-4-31b-it:free",
+    headers: h
+  }];
 };
 
 // Vision model chain — tried in order until one succeeds
@@ -200,6 +204,50 @@ async function callVisionModel(messages, providers) {
   throw new Error(lastError || "All vision models failed");
 }
 
+async function callTextModel(messages, providers) {
+  let lastError = null;
+
+  for (const provider of providers) {
+    try {
+      console.log(`[KAIRO Text] Trying model: ${provider.model}`);
+      const res = await fetch(provider.url, {
+        method: "POST",
+        headers: provider.headers,
+        body: JSON.stringify({
+          model: provider.model,
+          messages,
+          temperature: 0.25
+        })
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        const errMsg = errBody?.error?.message || `HTTP ${res.status}`;
+        console.warn(`[KAIRO Text] Model ${provider.model} failed: ${errMsg}`);
+        lastError = errMsg;
+        continue; // try next model
+      }
+
+      const data = await res.json();
+      const reply = data?.choices?.[0]?.message?.content?.trim();
+
+      if (!reply) {
+        console.warn(`[KAIRO Text] Model ${provider.model} returned empty reply`);
+        continue;
+      }
+
+      console.log(`[KAIRO Text] Success with model: ${provider.model}`);
+      return reply;
+
+    } catch (err) {
+      console.error(`[KAIRO Text] Network error with ${provider.model}:`, err.message);
+      lastError = err.message;
+    }
+  }
+
+  throw new Error(lastError || "All text models failed");
+}
+
 // ─── /api/chat endpoint ───
 app.post("/api/chat", async (req, res) => {
   try {
@@ -254,25 +302,7 @@ app.post("/api/chat", async (req, res) => {
       { role: "user", content: message }
     ];
 
-    const provider = getTextProvider();
-    const response = await fetch(provider.url, {
-      method: "POST",
-      headers: provider.headers,
-      body: JSON.stringify({ model: provider.model, messages: textMessages, temperature: 0.25 })
-    });
-
-    if (!response.ok) {
-      const errPayload = await response.json().catch(() => ({}));
-      return res.status(response.status).json({
-        error: errPayload?.error?.message || "Failed to get response from API."
-      });
-    }
-
-    const data = await response.json();
-    const reply = data?.choices?.[0]?.message?.content?.trim();
-
-    if (!reply) return res.status(502).json({ error: "Empty response from API." });
-
+    const reply = await callTextModel(textMessages, getTextProviders());
     console.log("\n[KAIRO TEXT REPLY]:", reply);
     return res.json({ reply });
 
