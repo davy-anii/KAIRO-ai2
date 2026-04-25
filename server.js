@@ -61,7 +61,7 @@ const buildVisionPrompt = (langInstruction = "") => `
 You are KAIRO, an all-knowing visual intelligence assistant.
 
 ${langInstruction}
-If the user asks to switch to a specific language (like Hindi, Bengali, etc.), you MUST instantly switch to that exact language for all your responses.
+If the user asks to switch to a specific language (like Hindi, Bengali, etc.), you MUST instantly switch to that exact language for all your responses. DO NOT mix languages. Your entire response must be ONLY in the requested language.
 If the user asks what topic you were just discussing, look at the conversation history and answer exactly what was being discussed. You have full memory of the current chat.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -130,7 +130,7 @@ const buildTextPrompt = (langInstruction = "") => [
   "Keep answers clear, natural, and human-like.",
   langInstruction,
   "If the user asks what topic you were just discussing, look at the conversation history and state exactly what was being discussed. You have full memory of the current chat.",
-  "If the user says they want to talk in a specific language (like Hindi, Bengali, etc.), you MUST instantly switch to that exact language for all future responses.",
+  "If the user says they want to talk in a specific language (like Hindi, Bengali, etc.), you MUST instantly switch to that exact language for ALL future responses. DO NOT mix languages. For example, if asked to speak in Bengali, your entire response must be ONLY in Bengali, with no Hindi or English included.",
   "You can generate images! If the user asks you to generate, create, draw, or make an image, reply with EXACTLY: [GENERATE_IMAGE: description]",
   "Example: [GENERATE_IMAGE: a beautiful golden sunset over the ocean, vibrant colors, cinematic]",
   "For math questions, solve step by step. Give the final answer first.",
