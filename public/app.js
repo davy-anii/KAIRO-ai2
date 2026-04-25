@@ -86,8 +86,30 @@ if (window.lucide?.createIcons) {
   window.lucide.createIcons();
 }
 
+// ─── Password Toggle Logic ───
+document.querySelectorAll(".password-toggle").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const wrapper = btn.closest(".password-field-wrapper");
+    const input = wrapper.querySelector("input");
+    // Target either the original <i> or the generated <svg>
+    const icon = btn.querySelector("[data-lucide]");
+    
+    if (input.type === "password") {
+      input.type = "text";
+      icon?.setAttribute("data-lucide", "eye-off");
+    } else {
+      input.type = "password";
+      icon?.setAttribute("data-lucide", "eye");
+    }
+    
+    // Re-run Lucide to update the icon
+    if (window.lucide?.createIcons) {
+      window.lucide.createIcons();
+    }
+  });
+});
+
 const appScreens = new Set(["home", "chat", "history", "profile"]);
-const initialChatGreeting = "BEEP BOOP! Hello! I am KAIRO, your AI assistant.";
 
 const state = {
   activeScreen: "onboarding",
@@ -656,21 +678,15 @@ function renderHistoryLists() {
   if (historyListEl) historyListEl.innerHTML = cards.join("");
 }
 
-function startNewSession() {
+function startNewSession(silent = false) {
   const id = `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   state.currentSessionId = id;
-  state.currentMessages = [
-    {
-      role: "bot",
-      text: initialChatGreeting,
-      time: Date.now(),
-      imageAttached: false
-    }
-  ];
+  state.currentMessages = [];
+  clearChatStream();
 }
 
 function persistCurrentSession() {
-  if (!state.currentSessionId || state.currentMessages.length <= 1) return;
+  if (!state.currentSessionId || state.currentMessages.length <= 0) return;
 
   const userMessages = state.currentMessages.filter((m) => m.role === "user");
   const botMessages = state.currentMessages.filter((m) => m.role === "bot");
@@ -922,8 +938,25 @@ function submitAuth(event) {
 }
 
 function buildModelHistory() {
-  return state.currentMessages
-    .filter((msg) => msg.role === "user" || msg.role === "bot")
+  // Silently include messages from the previous session to maintain long-term memory
+  let pastMessages = [];
+  if (state.chatHistory && state.chatHistory.length > 0) {
+    const lastSession = state.chatHistory[state.chatHistory.length - 1];
+    // Only pull from lastSession if we are currently in a new, different session
+    if (lastSession.id !== state.currentSessionId) {
+      pastMessages = lastSession.messages || [];
+    }
+  }
+
+  const allMessages = [...pastMessages, ...state.currentMessages]
+    .filter((msg) => msg.role === "user" || msg.role === "bot");
+  
+  // Remove the very last message since it's the current user prompt being sent
+  if (allMessages.length > 0 && allMessages[allMessages.length - 1].role === "user") {
+    allMessages.pop();
+  }
+
+  return allMessages
     .slice(-10)
     .map((msg) => ({
       role: msg.role === "bot" ? "assistant" : "user",
@@ -1355,7 +1388,7 @@ document.querySelectorAll("[data-target='signin']").forEach((btn) => {
 });
 
 function updateHomeView() {
-  const hasMessages = state.currentMessages.length > 1;
+  const hasMessages = state.currentMessages.length > 0;
   if (hasMessages) {
     kairoHomeGreetingEl?.classList.add("is-hidden");
     chatStreamEl?.classList.remove("is-hidden");
@@ -1371,9 +1404,7 @@ renderImagePreview("chat");
 renderImagePreview("home");
 renderHistoryLists();
 
-startNewSession();
-clearChatStream();
-appendChatMessage(state.currentMessages[0]);
+startNewSession(true);
 
 setScreen("onboarding");
 

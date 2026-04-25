@@ -369,7 +369,7 @@ export async function firebaseGoogleSignIn() {
   }
 }
 
-// ─── Apple Sign In (always redirect — required for Apple OAuth on web) ───
+// ─── Apple Sign In (popup → redirect fallback) ───
 export async function firebaseAppleSignIn() {
   clearAuthErrors();
   if (isFileProtocol()) {
@@ -378,17 +378,27 @@ export async function firebaseAppleSignIn() {
   }
 
   const btn = document.getElementById("apple-signin-btn") || document.getElementById("apple-signup-btn");
-  setButtonLoading(btn, true, "Redirecting to Apple…");
+  setButtonLoading(btn, true, "Opening Apple…");
 
   try {
-    // Apple REQUIRES redirect flow for web (popup is unreliable / blocked by Safari)
-    // This will redirect to: https://kairo-8b9ce.firebaseapp.com/__/auth/handler
-    // then back to your app's URL with the auth result in the URL fragment/state
-    await signInWithRedirect(auth, appleProvider);
-    // ↑ page navigates away; getRedirectResult() at the top handles the return
+    const result = await signInWithPopup(auth, appleProvider);
+    const additional = getAdditionalUserInfo(result);
+    await onSignInSuccess(result.user, additional?.isNewUser ?? false);
   } catch (err) {
-    const msg = friendlyError(err.code);
-    if (msg) showAuthError(msg);
+    if (err.code === "auth/popup-blocked" || err.code === "auth/popup-closed-by-user") {
+      // Fallback to redirect
+      try {
+        await signInWithRedirect(auth, appleProvider);
+        // getRedirectResult() at top will handle the result after page reload
+      } catch (redirectErr) {
+        const msg = friendlyError(redirectErr.code);
+        if (msg) showAuthError(msg);
+      }
+    } else {
+      const msg = friendlyError(err.code);
+      if (msg) showAuthError(msg);
+    }
+  } finally {
     setButtonLoading(btn, false);
   }
 }
