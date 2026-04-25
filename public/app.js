@@ -247,6 +247,30 @@ function stopSpeaking() {
   }
   _currentSpeakText = null;
 }
+// Pre-load voices so they are ready when needed
+if ("speechSynthesis" in window) {
+  window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  window.speechSynthesis.getVoices();
+}
+
+function getProfessionalVoice(langCode) {
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+
+  const langVoices = voices.filter(v => v.lang.startsWith(langCode));
+  if (!langVoices.length) return null;
+
+  // Search for high-quality / natural-sounding voices
+  const premium = langVoices.find(v => 
+    v.name.includes("Premium") || 
+    v.name.includes("Enhanced") || 
+    v.name.includes("Google") || 
+    v.name.includes("Online") ||
+    v.name.includes("Natural")
+  );
+  
+  return premium || langVoices[0];
+}
 
 function speakText(text, btn) {
   if (!("speechSynthesis" in window) || !text) return;
@@ -273,17 +297,24 @@ function speakText(text, btn) {
     if (!_isSpeaking) return; // was stopped before delay fired
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // Auto-detect language script to ensure non-English text is pronounced correctly
-    if (/[\u0980-\u09FF]/.test(text)) {
-      utterance.lang = "bn-IN"; // Bengali
-    } else if (/[\u0900-\u097F]/.test(text)) {
-      utterance.lang = "hi-IN"; // Hindi
+    // Auto-detect script to ensure correct language engine
+    let targetLang = navigator.language.split("-")[0] || "en"; 
+    if (/[\u0980-\u09FF]/.test(text)) targetLang = "bn"; // Bengali
+    if (/[\u0900-\u097F]/.test(text)) targetLang = "hi"; // Hindi
+
+    // Select the best available voice
+    const bestVoice = getProfessionalVoice(targetLang);
+    if (bestVoice) {
+      utterance.voice = bestVoice;
+      utterance.lang  = bestVoice.lang;
     } else {
-      utterance.lang = "en-US"; // Default English
+      // Fallback
+      utterance.lang = targetLang === "bn" ? "bn-IN" : targetLang === "hi" ? "hi-IN" : navigator.language;
     }
 
-    utterance.rate   = 1;
-    utterance.pitch  = 1;
+    // Slightly adjust pitch and rate to sound less robotic and more friendly
+    utterance.rate   = 0.95; 
+    utterance.pitch  = 1.05; 
     utterance.volume = 1;
 
     utterance.onend = () => {
