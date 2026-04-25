@@ -205,6 +205,14 @@ app.post("/api/chat", async (req, res) => {
   try {
     const { message, history = [], imageDataUrl = null, lang = "en" } = req.body || {};
 
+    console.log("\n========== [NEW CHAT MESSAGE] ==========");
+    console.log("User Message:", message);
+    console.log("Requested Language:", lang);
+    console.log("Has Image:", !!imageDataUrl);
+    console.log("History Length:", history.length);
+    console.log("========================================");
+
+
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "Message is required." });
     }
@@ -235,6 +243,7 @@ app.post("/api/chat", async (req, res) => {
       ];
 
       const reply = await callVisionModel(visionMessages, getVisionProviders());
+      console.log("\n[KAIRO VISION REPLY]:", reply);
       return res.json({ reply });
     }
 
@@ -264,6 +273,7 @@ app.post("/api/chat", async (req, res) => {
 
     if (!reply) return res.status(502).json({ error: "Empty response from API." });
 
+    console.log("\n[KAIRO TEXT REPLY]:", reply);
     return res.json({ reply });
 
   } catch (error) {
