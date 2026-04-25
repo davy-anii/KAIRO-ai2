@@ -28,7 +28,7 @@ const getTextProvider = () => {
   }
   return {
     url: "https://api.openai.com/v1/chat/completions",
-    model: process.env.OPENAI_MODEL || "google/gemma-4-31b-it:free",
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }
   };
 };
@@ -44,7 +44,7 @@ const getVisionProviders = () => {
     return [
       { url: base, model: "google/gemini-2.5-flash", headers: h },  // Very fast, extremely accurate
       { url: base, model: "google/gemini-2.0-flash-001", headers: h },  // Solid fallback
-      { url: base, model: "nvidia/nemotron-nano-12b-v2-vl:free", headers: h }, // Free fallback
+      { url: base, model: "google/gemma-4-31b-it:free", headers: h }, // Free fallback
       { url: base, model: "google/gemma-4-31b-it:free", headers: h }   // Last resort
     ];
   }
