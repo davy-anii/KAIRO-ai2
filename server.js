@@ -1,11 +1,8 @@
 require("dotenv").config();
 const express = require("express");
-const Tesseract = require("tesseract.js");
-const { create, all } = require("mathjs");
 
 const app  = express();
 const port = process.env.PORT || 3000;
-const math = create(all, {});
 
 app.use(express.json({ limit: "25mb" }));
 app.use(express.static("public"));
@@ -17,27 +14,6 @@ const normalizeText = (v) =>
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-
-const looksLikeArithmetic = (v) => /^[0-9\s+\-*/÷×().^%=]+$/.test(v);
-
-const trySolveArithmetic = (v) => {
-  const cleaned = normalizeText(v)
-    .replace(/[×x]/g, "*")
-    .replace(/[÷]/g, "/")
-    .replace(/=/g, "")
-    .replace(/\s+/g, "");
-  if (!cleaned || !looksLikeArithmetic(cleaned)) return null;
-  try {
-    return { expression: cleaned, result: String(math.evaluate(cleaned)) };
-  } catch { return null; }
-};
-
-const extractImageText = async (imageDataUrl) => {
-  try {
-    const result = await Tesseract.recognize(imageDataUrl, "eng");
-    return normalizeText(result?.data?.text || "");
-  } catch { return ""; }
-};
 
 // ─── Provider configs ───
 const getTextProvider = () => {
@@ -240,28 +216,8 @@ app.post("/api/chat", async (req, res) => {
 
     // ─── IMAGE PATH ───
     if (imageDataUrl) {
-      let imageContext = "";
-      let directAnswer = null;
-
-      try {
-        const extractedText = await extractImageText(imageDataUrl);
-        imageContext = extractedText;
-        if (looksLikeArithmetic(extractedText) && extractedText.length < 80) {
-          directAnswer = trySolveArithmetic(extractedText);
-        }
-      } catch { /* OCR failed — no big deal, vision model handles it */ }
-
-      if (directAnswer) {
-        return res.json({
-          reply: `The answer is ${directAnswer.result}.\n\nUsing order of operations on ${directAnswer.expression}.`
-        });
-      }
-
       // Build vision messages
-      const userText = [
-        message || "Analyze this image in detail — tell me everything about what you see.",
-        imageContext ? `\n[OCR extracted text from image: "${imageContext}"]` : ""
-      ].filter(Boolean).join("");
+      const userText = message || "Analyze this image in detail — tell me everything about what you see.";
 
       const visionMessages = [
         { role: "system", content: buildVisionPrompt(langInstruction) },
