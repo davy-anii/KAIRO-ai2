@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 
-const app  = express();
+const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json({ limit: "25mb" }));
@@ -18,16 +18,16 @@ const normalizeText = (v) =>
 // ─── Provider configs ───
 const getTextProvider = () => {
   const apiKey = process.env.OPENAI_API_KEY || "";
-  const isOR   = apiKey.startsWith("sk-or-v1-");
+  const isOR = apiKey.startsWith("sk-or-v1-");
   if (isOR) {
     return {
-      url:   "https://openrouter.ai/api/v1/chat/completions",
-      model: process.env.OPENAI_MODEL || "openai/gpt-4o-mini",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      model: process.env.OPENAI_MODEL || "google/gemma-4-31b-it:free",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }
     };
   }
   return {
-    url:   "https://api.openai.com/v1/chat/completions",
+    url: "https://api.openai.com/v1/chat/completions",
     model: process.env.OPENAI_MODEL || "gpt-4o-mini",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` }
   };
@@ -36,16 +36,16 @@ const getTextProvider = () => {
 // Vision model chain — tried in order until one succeeds
 const getVisionProviders = () => {
   const apiKey = process.env.OPENAI_API_KEY || "";
-  const isOR   = apiKey.startsWith("sk-or-v1-");
-  const base   = "https://openrouter.ai/api/v1/chat/completions";
-  const h      = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
+  const isOR = apiKey.startsWith("sk-or-v1-");
+  const base = "https://openrouter.ai/api/v1/chat/completions";
+  const h = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
 
   if (isOR) {
     return [
-      { url: base, model: "google/gemini-2.5-flash",        headers: h },  // Very fast, extremely accurate
-      { url: base, model: "google/gemini-2.0-flash-001",    headers: h },  // Solid fallback
+      { url: base, model: "google/gemini-2.5-flash", headers: h },  // Very fast, extremely accurate
+      { url: base, model: "google/gemini-2.0-flash-001", headers: h },  // Solid fallback
       { url: base, model: "nvidia/nemotron-nano-12b-v2-vl:free", headers: h }, // Free fallback
-      { url: base, model: "openai/gpt-4o-mini",             headers: h }   // Last resort
+      { url: base, model: "openai/gpt-4o-mini", headers: h }   // Last resort
     ];
   }
   // Native OpenAI key
@@ -146,25 +146,25 @@ async function callVisionModel(messages, providers) {
     try {
       console.log(`[KAIRO Vision] Trying model: ${provider.model}`);
       const res = await fetch(provider.url, {
-        method:  "POST",
+        method: "POST",
         headers: provider.headers,
-        body:    JSON.stringify({
-          model:       provider.model,
+        body: JSON.stringify({
+          model: provider.model,
           messages,
           temperature: 0.1,        // very low = precise identification
-          max_tokens:  1024
+          max_tokens: 1024
         })
       });
 
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
-        const errMsg  = errBody?.error?.message || `HTTP ${res.status}`;
+        const errMsg = errBody?.error?.message || `HTTP ${res.status}`;
         console.warn(`[KAIRO Vision] Model ${provider.model} failed: ${errMsg}`);
         lastError = errMsg;
         continue; // try next model
       }
 
-      const data  = await res.json();
+      const data = await res.json();
       const reply = data?.choices?.[0]?.message?.content?.trim();
 
       if (!reply) {
@@ -236,7 +236,7 @@ app.post("/api/chat", async (req, res) => {
         {
           role: "user",
           content: [
-            { type: "text",      text: userText },
+            { type: "text", text: userText },
             { type: "image_url", image_url: { url: imageDataUrl, detail: "high" } }
           ]
         }
@@ -256,9 +256,9 @@ app.post("/api/chat", async (req, res) => {
 
     const provider = getTextProvider();
     const response = await fetch(provider.url, {
-      method:  "POST",
+      method: "POST",
       headers: provider.headers,
-      body:    JSON.stringify({ model: provider.model, messages: textMessages, temperature: 0.25 })
+      body: JSON.stringify({ model: provider.model, messages: textMessages, temperature: 0.25 })
     });
 
     if (!response.ok) {
@@ -268,7 +268,7 @@ app.post("/api/chat", async (req, res) => {
       });
     }
 
-    const data  = await response.json();
+    const data = await response.json();
     const reply = data?.choices?.[0]?.message?.content?.trim();
 
     if (!reply) return res.status(502).json({ error: "Empty response from API." });
@@ -301,9 +301,9 @@ app.post("/api/generate-image", async (req, res) => {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model:           "black-forest-labs/flux-schnell:free",
+        model: "black-forest-labs/flux-schnell:free",
         prompt,
-        n:               1,
+        n: 1,
         response_format: "url"
       })
     });
@@ -313,7 +313,7 @@ app.post("/api/generate-image", async (req, res) => {
       return res.status(response.status).json({ error: err?.error?.message || "Image generation failed." });
     }
 
-    const data     = await response.json();
+    const data = await response.json();
     const imageUrl = data?.data?.[0]?.url;
 
     if (!imageUrl) return res.status(502).json({ error: "No image returned from API." });
