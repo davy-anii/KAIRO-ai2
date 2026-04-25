@@ -272,6 +272,16 @@ function speakText(text, btn) {
   setTimeout(() => {
     if (!_isSpeaking) return; // was stopped before delay fired
     const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Auto-detect language script to ensure non-English text is pronounced correctly
+    if (/[\u0980-\u09FF]/.test(text)) {
+      utterance.lang = "bn-IN"; // Bengali
+    } else if (/[\u0900-\u097F]/.test(text)) {
+      utterance.lang = "hi-IN"; // Hindi
+    } else {
+      utterance.lang = "en-US"; // Default English
+    }
+
     utterance.rate   = 1;
     utterance.pitch  = 1;
     utterance.volume = 1;
