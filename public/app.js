@@ -272,6 +272,16 @@ function getProfessionalVoice(langCode) {
   return premium || langVoices[0];
 }
 
+// Clean markdown characters from text before speaking
+function cleanTextForSpeech(text) {
+  return text
+    .replace(/[*_~`#]/g, '') // Remove markdown symbols
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Extract text from links
+    .replace(/(?:https?|ftp):\/\/[\n\S]+/g, 'link') // Replace URLs with word "link"
+    .replace(/\s+/g, ' ') // Collapse whitespace
+    .trim();
+}
+
 function speakText(text, btn) {
   if (!("speechSynthesis" in window) || !text) return;
 
@@ -294,60 +304,62 @@ function speakText(text, btn) {
 
   // Chrome bug: must create utterance AFTER cancel, with tiny delay
   setTimeout(() => {
-    if (!_isSpeaking) return; // was stopped before delay fired
-    const utterance = new SpeechSynthesisUtterance(text);
+    if (!_isSpeaking) return;
+
+    // Clean text and split by sentences to prevent Chrome's 15-second cutoff bug
+    const cleanText = cleanTextForSpeech(text);
+    const chunks = cleanText.match(/[^.!?।\n]+[.!?।\n]*/g) || [cleanText];
     
     // Auto-detect script to ensure correct language engine
     let targetLang = navigator.language.split("-")[0] || "en"; 
-    if (/[\u0980-\u09FF]/.test(text)) targetLang = "bn"; // Bengali
-    if (/[\u0900-\u097F]/.test(text)) targetLang = "hi"; // Hindi
+    if (/[\u0980-\u09FF]/.test(cleanText)) targetLang = "bn"; // Bengali
+    if (/[\u0900-\u097F]/.test(cleanText)) targetLang = "hi"; // Hindi
 
     // Select the best available voice
     const bestVoice = getProfessionalVoice(targetLang);
-    if (bestVoice) {
-      utterance.voice = bestVoice;
-      utterance.lang  = bestVoice.lang;
-    } else {
-      // Fallback
-      utterance.lang = targetLang === "bn" ? "bn-IN" : targetLang === "hi" ? "hi-IN" : navigator.language;
+    let currentIndex = 0;
+
+    function speakNextChunk() {
+      if (!_isSpeaking || currentIndex >= chunks.length) {
+        stopSpeaking();
+        return;
+      }
+
+      const chunkText = chunks[currentIndex].trim();
+      if (!chunkText) {
+        currentIndex++;
+        return speakNextChunk();
+      }
+
+      const utterance = new SpeechSynthesisUtterance(chunkText);
+      if (bestVoice) {
+        utterance.voice = bestVoice;
+        utterance.lang  = bestVoice.lang;
+      } else {
+        utterance.lang = targetLang === "bn" ? "bn-IN" : targetLang === "hi" ? "hi-IN" : navigator.language;
+      }
+
+      // Slightly adjust pitch and rate to sound less robotic and more friendly
+      utterance.rate   = 0.95; 
+      utterance.pitch  = 1.05; 
+      utterance.volume = 1;
+
+      utterance.onend = () => {
+        currentIndex++;
+        speakNextChunk();
+      };
+
+      utterance.onerror = (e) => {
+        if (e.error === "interrupted" || e.error === "canceled") return;
+        currentIndex++;
+        speakNextChunk();
+      };
+
+      window.speechSynthesis.speak(utterance);
     }
 
-    // Slightly adjust pitch and rate to sound less robotic and more friendly
-    utterance.rate   = 0.95; 
-    utterance.pitch  = 1.05; 
-    utterance.volume = 1;
+    speakNextChunk();
 
-    utterance.onend = () => {
-      _isSpeaking = false;
-      if (_currentSpeakBtn) {
-        _currentSpeakBtn.textContent = "Speak";
-        _currentSpeakBtn.classList.remove("is-speaking");
-        _currentSpeakBtn  = null;
-      }
-      _currentSpeakText = null;
-    };
-
-    utterance.onerror = (e) => {
-      if (e.error === "interrupted" || e.error === "canceled") return; // normal
-      _isSpeaking = false;
-      if (_currentSpeakBtn) {
-        _currentSpeakBtn.textContent = "Speak";
-        _currentSpeakBtn.classList.remove("is-speaking");
-        _currentSpeakBtn  = null;
-      }
-      _currentSpeakText = null;
-    };
-
-    // Chrome: keep synthesis alive on long text (fix for Chrome bug)
-    const keepAlive = setInterval(() => {
-      if (!_isSpeaking) { clearInterval(keepAlive); return; }
-      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-    }, 10000);
-
-    utterance.onend   = (orig => function(e) { clearInterval(keepAlive); orig.call(this, e); })(utterance.onend);
-    utterance.onerror = (orig => function(e) { clearInterval(keepAlive); orig.call(this, e); })(utterance.onerror);
-
-    window.speechSynthesis.speak(utterance);
   }, 50);
 }
 
