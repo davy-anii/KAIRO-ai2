@@ -143,23 +143,41 @@ async function saveUserToFirestore(user, extraData = {}) {
     const ref  = doc(db, "users", user.uid);
     const snap = await getDoc(ref);
 
-    const base = {
-      uid:         user.uid,
-      email:       user.email ?? extraData.email ?? "",
-      displayName: user.displayName ?? extraData.name ?? user.email?.split("@")[0] ?? "User",
-      photoURL:    user.photoURL ?? extraData.photoURL ?? "",
-      lastSignIn:  new Date().toISOString(),
-      ...extraData
-    };
-
     if (!snap.exists()) {
       // First time — set createdAt too
-      await setDoc(ref, { ...base, createdAt: new Date().toISOString() });
+      const base = {
+        uid:         user.uid,
+        email:       user.email ?? extraData.email ?? "",
+        displayName: user.displayName ?? extraData.name ?? user.email?.split("@")[0] ?? "User",
+        photoURL:    user.photoURL ?? extraData.photoURL ?? "",
+        lastSignIn:  new Date().toISOString(),
+        createdAt:   new Date().toISOString(),
+        ...extraData
+      };
+      await setDoc(ref, base);
+      console.log("[KAIRO Firestore] User profile created:", base.displayName);
     } else {
-      // Merge — don't overwrite createdAt or existing chatHistory
-      await setDoc(ref, base, { merge: true });
+      // Merge — safely update fields without overwriting with empty defaults
+      const updates = { ...extraData };
+      
+      // If a full Firebase Auth user object is passed, update lastSignIn
+      if (user.providerData) {
+        updates.lastSignIn = new Date().toISOString();
+      }
+
+      // Only update profile fields if explicitly provided
+      if (user.email) updates.email = user.email;
+      else if (extraData.email) updates.email = extraData.email;
+
+      if (user.displayName) updates.displayName = user.displayName;
+      else if (extraData.name) updates.displayName = extraData.name;
+
+      if (user.photoURL) updates.photoURL = user.photoURL;
+      else if (extraData.photoURL) updates.photoURL = extraData.photoURL;
+
+      await setDoc(ref, updates, { merge: true });
+      console.log("[KAIRO Firestore] User profile updated");
     }
-    console.log("[KAIRO Firestore] User profile saved:", base.displayName);
   } catch (err) {
     console.error("[KAIRO Firestore] saveUserToFirestore error:", err);
   }
@@ -208,6 +226,11 @@ async function onSignInSuccess(user, isNewUser = false) {
         window.__kairoLoadHistory(firestoreData.chatHistory);
       }
       console.log("[KAIRO Firestore] Chat history loaded:", firestoreData.chatHistory.length, "sessions");
+    }
+
+    // Sync preferences
+    if (window.__kairoLoadPreferences) {
+      window.__kairoLoadPreferences(firestoreData);
     }
   } else {
     // No Firestore data yet — just set from Firebase user object
@@ -271,6 +294,9 @@ onAuthStateChanged(auth, async (user) => {
       }
       if (data.chatHistory && Array.isArray(data.chatHistory) && window.__kairoLoadHistory) {
         window.__kairoLoadHistory(data.chatHistory);
+      }
+      if (window.__kairoLoadPreferences) {
+        window.__kairoLoadPreferences(data);
       }
     }).catch(() => {});
 

@@ -152,6 +152,19 @@ function readHistory() {
 
 function saveProfile() {
   localStorage.setItem(STORAGE_PROFILE, JSON.stringify(state.profile));
+
+  // Sync with Firestore if authenticated
+  const currentUser = window.__firebaseAuth?.getCurrentUser?.();
+  if (currentUser && window.__firebaseAuth?.saveUserData) {
+    window.__firebaseAuth.saveUserData(
+      { uid: currentUser.uid },
+      { 
+        name: state.profile.name,
+        email: state.profile.email,
+        photoURL: state.profile.photoURL
+      }
+    );
+  }
 }
 
 function saveHistory() {
@@ -397,6 +410,17 @@ function updateSpeechToggle() {
   const enabled = String(state.autoSpeakEnabled);
   if (speechToggleEl) speechToggleEl.setAttribute("aria-pressed", enabled);
   if (homeSpeechToggleEl) homeSpeechToggleEl.setAttribute("aria-pressed", enabled);
+  
+  localStorage.setItem(STORAGE_VOICE, state.autoSpeakEnabled ? "on" : "off");
+  
+  // Sync voice preference with Firestore
+  const currentUser = window.__firebaseAuth?.getCurrentUser?.();
+  if (currentUser && window.__firebaseAuth?.saveUserData) {
+    window.__firebaseAuth.saveUserData(
+      { uid: currentUser.uid },
+      { autoSpeakEnabled: state.autoSpeakEnabled }
+    );
+  }
 }
 
 function startSpeechToText(textareaEl, triggerBtnEl) {
@@ -885,6 +909,13 @@ window.__kairoSetProfile = function ({ name, email, photoURL }) {
   state.profile.photoURL = photoURL || "";
   saveProfile();
   renderProfile();
+};
+
+window.__kairoLoadPreferences = function (preferences) {
+  if (preferences && typeof preferences.autoSpeakEnabled === 'boolean') {
+    state.autoSpeakEnabled = preferences.autoSpeakEnabled;
+    updateSpeechToggle(); // Updates UI and localStorage
+  }
 };
 
 // Called by firebase-auth.js to load Firestore chat history into app state
