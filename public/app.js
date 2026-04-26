@@ -1402,10 +1402,35 @@ function handleHistoryClick(event) {
 recentActivityEl?.addEventListener("click", handleHistoryClick);
 historyListEl?.addEventListener("click", handleHistoryClick);
 
-// ─── Sign Out: wire all [data-target="signin"] buttons to Firebase ───
+// ─── Suggestion Chips: tap to pre-fill and send ───
+document.querySelectorAll("[data-suggestion]").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    const text = chip.getAttribute("data-suggestion");
+    if (!text) return;
+    messageEl.value = text;
+    autoResizeTextarea(messageEl);
+    messageEl.focus();
+    submitComposer("chat");
+  });
+});
+
+// ─── Profile action buttons (data-target routing) ───
+document.querySelectorAll(".profile-action-btn[data-target]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const target = btn.getAttribute("data-target");
+    if (!target) return;
+    if (target === "signin") {
+      const fb = window.__firebaseAuth;
+      if (fb) fb.signOut();
+      return;
+    }
+    setScreen(target);
+  });
+});
+
+// ─── Sign Out: wire hamburger menu sign-out button ───
 document.querySelectorAll("[data-target='signin']").forEach((btn) => {
-  // Only intercept the Sign Out button in the home menu (not the auth buttons)
-  if (btn.textContent.trim().toLowerCase() === "sign out") {
+  if (btn.textContent.trim().toLowerCase().includes("sign out")) {
     btn.addEventListener("click", () => {
       const fb = window.__firebaseAuth;
       if (fb) fb.signOut();
@@ -1422,6 +1447,14 @@ function updateHomeView() {
     kairoHomeGreetingEl?.classList.remove("is-hidden");
     chatStreamEl?.classList.add("is-hidden");
   }
+
+  // Update stat counters on profile screen
+  if (statChatsEl) statChatsEl.textContent = state.chatHistory.length;
+  if (statMessagesEl) {
+    const total = state.chatHistory.reduce((sum, s) => sum + (s.messages?.length || 0), 0);
+    statMessagesEl.textContent = total;
+  }
+  if (statVoiceEl) statVoiceEl.textContent = state.autoSpeakEnabled ? "On" : "Off";
 }
 
 updateSpeechToggle();

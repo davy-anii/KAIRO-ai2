@@ -200,7 +200,7 @@
                 </div>
               </header>
 
-              <!-- Hidden div kept for JS compatibility (home-chat-actions controls chat stream visibility) -->
+              <!-- Hidden div kept for JS compatibility -->
               <div class="home-chat-actions is-hidden" id="home-chat-actions" style="display:none!important"></div>
 
               <section class="home-menu is-hidden" id="home-menu" aria-label="Menu options">
@@ -222,19 +222,35 @@
                 </button>
               </section>
 
-              <!-- Content area that grows to fill space -->
+              <!-- Content area -->
               <div class="chat-content">
                 <!-- Greeting: shown when no chat messages -->
                 <section class="kairo-greeting" id="kairo-home-greeting" aria-label="Greeting">
-                  <p id="home-greeting">Good Morning, Ankit Karmakar 🌤</p>
-                  <h3>HII I AM KAIRO YOUR ASSIST</h3>
+                  <p id="home-greeting">Good Morning ☀️</p>
+                  <h3>How can I help you today?</h3>
+
+                  <!-- Quick suggestion chips -->
+                  <div class="kairo-suggestions" id="kairo-suggestions">
+                    <button type="button" class="kairo-suggestion-chip" data-suggestion="Explain quantum computing in simple terms">
+                      <i data-lucide="zap" aria-hidden="true"></i>&nbsp; Explain something complex
+                    </button>
+                    <button type="button" class="kairo-suggestion-chip" data-suggestion="Write a short motivational message for me">
+                      <i data-lucide="heart" aria-hidden="true"></i>&nbsp; Motivate me
+                    </button>
+                    <button type="button" class="kairo-suggestion-chip" data-suggestion="Give me 5 creative ideas for a weekend project">
+                      <i data-lucide="lightbulb" aria-hidden="true"></i>&nbsp; Creative ideas
+                    </button>
+                    <button type="button" class="kairo-suggestion-chip" data-suggestion="What are today's top AI trends?">
+                      <i data-lucide="trending-up" aria-hidden="true"></i>&nbsp; AI trends today
+                    </button>
+                  </div>
                 </section>
 
                 <!-- Chat stream: shown once conversation begins -->
                 <div class="chat-stream is-hidden" id="chat-stream" aria-live="polite"></div>
               </div>
 
-              <!-- Full composer (same as old chat screen) -->
+              <!-- Composer -->
               <form class="chat-composer" id="chat-form">
                 <div id="image-preview" class="image-preview is-hidden" aria-live="polite"></div>
 
@@ -247,13 +263,12 @@
                 ></textarea>
 
                 <div class="composer-actions">
-                  <label class="attach-chip icon-chip" for="image-input" title="Attach image"><i data-lucide="plus" aria-hidden="true"></i></label>
+                  <label class="attach-chip icon-chip" for="image-input" title="Attach image" aria-label="Attach image"><i data-lucide="paperclip" aria-hidden="true"></i></label>
                   <input id="image-input" type="file" accept="image/*" hidden />
-                  <button id="stt-btn" type="button" class="chip-button icon-chip" title="Speech to text" aria-label="Speech to text"><i data-lucide="mic" aria-hidden="true"></i></button>
-
+                  <button id="stt-btn" type="button" class="chip-button icon-chip" title="Voice input" aria-label="Voice input"><i data-lucide="mic" aria-hidden="true"></i></button>
+                  <button id="speech-toggle" type="button" class="voice-chip icon-chip" title="Auto-speak replies" aria-label="Auto-speak replies" aria-pressed="false"><i data-lucide="volume-2" aria-hidden="true"></i></button>
                   <button id="send" type="submit" class="send-button" aria-label="Send message">Send</button>
                 </div>
-                <!-- dummy new-chat-btn kept for JS compat -->
                 <button id="home-new-chat-btn" hidden aria-hidden="true"></button>
               </form>
             </div>
@@ -267,6 +282,9 @@
                   <p class="eyebrow">History</p>
                   <h2>Your Chats</h2>
                 </div>
+                <button type="button" class="kairo-icon-button" data-nav-target="home" title="New Chat" aria-label="New Chat">
+                  <i data-lucide="pen-line" aria-hidden="true"></i>
+                </button>
               </div>
 
               <div class="glass-panel history-panel">
@@ -297,6 +315,31 @@
                   </div>
                 </div>
 
+                <div class="stats-grid">
+                  <div class="stat-card">
+                    <strong id="stat-chats">0</strong>
+                    <span>Sessions</span>
+                  </div>
+                  <div class="stat-card">
+                    <strong id="stat-messages">0</strong>
+                    <span>Messages</span>
+                  </div>
+                  <div class="stat-card">
+                    <strong id="stat-voice">Off</strong>
+                    <span>Voice</span>
+                  </div>
+                </div>
+
+                <div class="profile-actions">
+                  <button type="button" class="profile-action-btn" data-target="history">
+                    <i data-lucide="history" aria-hidden="true"></i>
+                    <span>View History</span>
+                  </button>
+                  <button type="button" class="profile-action-btn profile-action-btn--danger" data-target="signin">
+                    <i data-lucide="log-out" aria-hidden="true"></i>
+                    <span>Sign Out</span>
+                  </button>
+                </div>
               </section>
 
             </div>
