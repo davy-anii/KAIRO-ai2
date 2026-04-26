@@ -399,10 +399,11 @@ function updateSpeechToggle() {
   if (homeSpeechToggleEl) homeSpeechToggleEl.setAttribute("aria-pressed", enabled);
 }
 
-async function startSpeechToText(textareaEl, triggerBtnEl) {
+function startSpeechToText(textareaEl, triggerBtnEl) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   if (!SpeechRecognition) {
+    alert("Speech-to-text is not supported in this browser. If you are on iPhone/iPad, please make sure you are using Safari.");
     appendChatMessage({ role: "bot", text: "Speech-to-text is not supported in this browser.", time: Date.now() });
     return;
   }
@@ -410,23 +411,6 @@ async function startSpeechToText(textareaEl, triggerBtnEl) {
   if (triggerBtnEl) {
     triggerBtnEl.classList.add("is-listening");
     triggerBtnEl.disabled = true;
-  }
-
-  // Force permission prompt on mobile before initializing SpeechRecognition
-  try {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Stop the stream immediately, SpeechRecognition will manage its own audio
-      stream.getTracks().forEach(track => track.stop());
-    }
-  } catch (err) {
-    console.error("Microphone access denied:", err);
-    if (triggerBtnEl) {
-      triggerBtnEl.classList.remove("is-listening");
-      triggerBtnEl.disabled = false;
-    }
-    appendChatMessage({ role: "bot", text: "Microphone access is required. Please allow microphone permissions in your browser settings.", time: Date.now() });
-    return;
   }
 
   const recognition = new SpeechRecognition();
@@ -459,6 +443,7 @@ async function startSpeechToText(textareaEl, triggerBtnEl) {
       triggerBtnEl.disabled = false;
     }
     if (event.error === 'not-allowed') {
+      alert("Microphone access was denied! Please allow microphone permissions in your device/browser settings.");
       appendChatMessage({ role: "bot", text: "Microphone access is blocked. Please allow it in your browser settings.", time: Date.now() });
     }
   };
@@ -471,6 +456,7 @@ async function startSpeechToText(textareaEl, triggerBtnEl) {
       triggerBtnEl.classList.remove("is-listening");
       triggerBtnEl.disabled = false;
     }
+    alert("Could not start microphone. Make sure permissions are granted.");
   }
 }
 
