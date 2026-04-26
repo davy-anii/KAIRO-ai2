@@ -399,7 +399,7 @@ function updateSpeechToggle() {
   if (homeSpeechToggleEl) homeSpeechToggleEl.setAttribute("aria-pressed", enabled);
 }
 
-function startSpeechToText(textareaEl, triggerBtnEl) {
+async function startSpeechToText(textareaEl, triggerBtnEl) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   if (!SpeechRecognition) {
@@ -407,15 +407,32 @@ function startSpeechToText(textareaEl, triggerBtnEl) {
     return;
   }
 
-  const recognition = new SpeechRecognition();
-  recognition.lang = "en-US";
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
   if (triggerBtnEl) {
     triggerBtnEl.classList.add("is-listening");
     triggerBtnEl.disabled = true;
   }
+
+  // Force permission prompt on mobile before initializing SpeechRecognition
+  try {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Stop the stream immediately, SpeechRecognition will manage its own audio
+      stream.getTracks().forEach(track => track.stop());
+    }
+  } catch (err) {
+    console.error("Microphone access denied:", err);
+    if (triggerBtnEl) {
+      triggerBtnEl.classList.remove("is-listening");
+      triggerBtnEl.disabled = false;
+    }
+    appendChatMessage({ role: "bot", text: "Microphone access is required. Please allow microphone permissions in your browser settings.", time: Date.now() });
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
 
   recognition.onresult = (event) => {
     const transcript = event.results?.[0]?.[0]?.transcript?.trim();
@@ -435,14 +452,26 @@ function startSpeechToText(textareaEl, triggerBtnEl) {
     textareaEl.focus();
   };
 
-  recognition.onerror = () => {
+  recognition.onerror = (event) => {
+    console.error("Speech recognition error:", event.error);
     if (triggerBtnEl) {
       triggerBtnEl.classList.remove("is-listening");
       triggerBtnEl.disabled = false;
     }
+    if (event.error === 'not-allowed') {
+      appendChatMessage({ role: "bot", text: "Microphone access is blocked. Please allow it in your browser settings.", time: Date.now() });
+    }
   };
 
-  recognition.start();
+  try {
+    recognition.start();
+  } catch (err) {
+    console.error("Failed to start recognition:", err);
+    if (triggerBtnEl) {
+      triggerBtnEl.classList.remove("is-listening");
+      triggerBtnEl.disabled = false;
+    }
+  }
 }
 
 function readImageAsDataUrl(file) {
