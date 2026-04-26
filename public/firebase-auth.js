@@ -136,11 +136,21 @@ function friendlyError(code) {
   return map[code] ?? `❌ Something went wrong (${code ?? "unknown"}). Please try again.`;
 }
 
+function getUserDocId(user, extraData = {}) {
+  // Try to get a recognizable name, fallback to email, then uid
+  let name = user?.displayName || extraData?.name || user?.email?.split("@")[0];
+  if (!name || name === "User") {
+    name = user?.email;
+  }
+  return name || user?.uid;
+}
+
 // ─── Firestore: Save / Merge User Profile ───
 async function saveUserToFirestore(user, extraData = {}) {
   if (!user?.uid) return;
   try {
-    const ref  = doc(db, "users", user.uid);
+    const docId = getUserDocId(user, extraData);
+    const ref  = doc(db, "users", docId);
     const snap = await getDoc(ref);
 
     if (!snap.exists()) {
@@ -184,12 +194,13 @@ async function saveUserToFirestore(user, extraData = {}) {
 }
 
 // ─── Firestore: Fetch Full User Data (profile + chatHistory) ───
-async function fetchUserFromFirestore(uid) {
-  if (!uid) return null;
+async function fetchUserFromFirestore(user) {
+  if (!user) return null;
   try {
-    const snap = await getDoc(doc(db, "users", uid));
+    const docId = getUserDocId(user);
+    const snap = await getDoc(doc(db, "users", docId));
     if (snap.exists()) {
-      console.log("[KAIRO Firestore] User data fetched for:", uid);
+      console.log("[KAIRO Firestore] User data fetched for:", docId);
       return snap.data();
     }
   } catch (err) {
@@ -208,7 +219,7 @@ async function onSignInSuccess(user, isNewUser = false) {
   await saveUserToFirestore(user);
 
   // 2) Pull full Firestore data and hydrate app state
-  const firestoreData = await fetchUserFromFirestore(user.uid);
+  const firestoreData = await fetchUserFromFirestore(user);
 
   if (firestoreData) {
     // Sync profile fields (name, email, photo)
@@ -283,7 +294,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     // Then enrich from Firestore in the background
-    fetchUserFromFirestore(user.uid).then((data) => {
+    fetchUserFromFirestore(user).then((data) => {
       if (!data) return;
       if (window.__kairoSetProfile) {
         window.__kairoSetProfile({

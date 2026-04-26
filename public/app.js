@@ -11,8 +11,9 @@ async function saveHistoryToFirestore(userId, chatHistory) {
     }
     
     // Save to Firestore via the firebase auth module
-    if (window.__firebaseAuth.saveUserData) {
-      await window.__firebaseAuth.saveUserData({ uid: userId }, { 
+    const currentUser = window.__firebaseAuth?.getCurrentUser?.();
+    if (window.__firebaseAuth.saveUserData && currentUser) {
+      await window.__firebaseAuth.saveUserData(currentUser, { 
         chatHistory: chatHistory.slice(0, 50),
         lastUpdated: new Date().toISOString()
       });
@@ -29,8 +30,10 @@ async function loadHistoryFromFirestore(userId) {
       console.warn("[KAIRO] Firebase not loaded yet");
       return null;
     }
+    const currentUser = window.__firebaseAuth?.getCurrentUser?.();
+    if (!currentUser) return null;
     
-    const userData = await window.__firebaseAuth.fetchUserData(userId);
+    const userData = await window.__firebaseAuth.fetchUserData(currentUser);
     if (userData && userData.chatHistory) {
       console.log("[KAIRO] Chat history loaded from Firestore");
       return userData.chatHistory;
@@ -157,7 +160,7 @@ function saveProfile() {
   const currentUser = window.__firebaseAuth?.getCurrentUser?.();
   if (currentUser && window.__firebaseAuth?.saveUserData) {
     window.__firebaseAuth.saveUserData(
-      { uid: currentUser.uid },
+      currentUser,
       { 
         name: state.profile.name,
         email: state.profile.email,
@@ -417,7 +420,7 @@ function updateSpeechToggle() {
   const currentUser = window.__firebaseAuth?.getCurrentUser?.();
   if (currentUser && window.__firebaseAuth?.saveUserData) {
     window.__firebaseAuth.saveUserData(
-      { uid: currentUser.uid },
+      currentUser,
       { autoSpeakEnabled: state.autoSpeakEnabled }
     );
   }
