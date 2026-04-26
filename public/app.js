@@ -258,6 +258,14 @@ function renderProfile() {
 let _currentSpeakBtn   = null;
 let _currentSpeakText  = null;
 let _isSpeaking        = false;
+let _speechUnlocked    = false;
+
+function unlockSpeech() {
+  if (_speechUnlocked || !("speechSynthesis" in window)) return;
+  const utterance = new SpeechSynthesisUtterance("");
+  window.speechSynthesis.speak(utterance);
+  _speechUnlocked = true;
+}
 
 function stopSpeaking() {
   _isSpeaking = false;
@@ -1036,6 +1044,7 @@ document.getElementById("forgot-password-btn")?.addEventListener("click", () => 
 });
 
 speechToggleEl?.addEventListener("click", () => {
+  unlockSpeech();
   state.autoSpeakEnabled = !state.autoSpeakEnabled;
   localStorage.setItem(STORAGE_VOICE, state.autoSpeakEnabled ? "on" : "off");
   updateSpeechToggle();
@@ -1045,6 +1054,7 @@ speechToggleEl?.addEventListener("click", () => {
 });
 
 homeSpeechToggleEl?.addEventListener("click", () => {
+  unlockSpeech();
   state.autoSpeakEnabled = !state.autoSpeakEnabled;
   localStorage.setItem(STORAGE_VOICE, state.autoSpeakEnabled ? "on" : "off");
   updateSpeechToggle();
@@ -1202,6 +1212,7 @@ homeMessageEl?.addEventListener("keydown", (event) => {
 });
 
 async function submitComposer(mode) {
+  unlockSpeech(); // Mobile requires speech synthesis to be initialized synchronously from user action
   const textEl = mode === "home" ? homeMessageEl : messageEl;
   const sendButtonEl = mode === "home" ? homeSendEl : sendEl;
 
