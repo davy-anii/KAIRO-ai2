@@ -17,6 +17,7 @@ import {
   OAuthProvider,
   signOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
   onAuthStateChanged,
   updateProfile,
   setPersistence,
@@ -209,20 +210,50 @@ async function fetchUserFromFirestore(user) {
   return null;
 }
 
+// ─── Show the Email Verification waiting screen ───
+function showVerifyScreen(user) {
+  const emailEl = document.getElementById("verify-email-display");
+  if (emailEl) emailEl.textContent = user?.email || "";
+  if (window.__kairoSetScreen) window.__kairoSetScreen("verify-email");
+  if (window.__kairoHideSplash) window.__kairoHideSplash();
+}
+
 // ─── Post-Auth: load everything and navigate home ───
-async function onSignInSuccess(user, isNewUser = false) {
+async function onSignInSuccess(user, isNewUser = false, forceVerified = false) {
   if (!user) return;
 
   clearAuthErrors();
 
-  // 1) Save / update profile in Firestore
-  await saveUserToFirestore(user);
-
-  // 2) Pull full Firestore data and hydrate app state
+  // ── EMAIL VERIFICATION GATE (ONLY FOR NEW USERS) ──
+  // 1) Pull full Firestore data first
   const firestoreData = await fetchUserFromFirestore(user);
 
+  // LOGIC: 
+  // - If forceVerified is true (just finished OTP), they are good.
+  // - If they ALREADY HAVE a profile in Firestore, they are an "Old User" -> Let them in.
+  // - If they have NO profile, they are a "New User" -> Enforce OTP.
+  const isVerified = forceVerified || !!firestoreData;
+
+  if (!isVerified) {
+    console.log("[KAIRO Auth] New user (no profile) detected — enforcing OTP.");
+    
+    // Send OTP only if they haven't just come from a failed verify attempt
+    try {
+      await fetch("/api/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email })
+      });
+    } catch (e) {}
+
+    showVerifyScreen(user);
+    return;
+  }
+
+  // 2) Save / update profile in Firestore (already have data, but merge new login time)
+  await saveUserToFirestore(user);
+
   if (firestoreData) {
-    // Sync profile fields (name, email, photo)
     if (window.__kairoSetProfile) {
       window.__kairoSetProfile({
         name:     firestoreData.displayName || user.displayName || user.email?.split("@")[0] || "User",
@@ -230,21 +261,11 @@ async function onSignInSuccess(user, isNewUser = false) {
         photoURL: firestoreData.photoURL || user.photoURL || ""
       });
     }
-
-    // Sync chat history if it exists in Firestore
     if (firestoreData.chatHistory && Array.isArray(firestoreData.chatHistory)) {
-      if (window.__kairoLoadHistory) {
-        window.__kairoLoadHistory(firestoreData.chatHistory);
-      }
-      console.log("[KAIRO Firestore] Chat history loaded:", firestoreData.chatHistory.length, "sessions");
+      if (window.__kairoLoadHistory) window.__kairoLoadHistory(firestoreData.chatHistory);
     }
-
-    // Sync preferences
-    if (window.__kairoLoadPreferences) {
-      window.__kairoLoadPreferences(firestoreData);
-    }
+    if (window.__kairoLoadPreferences) window.__kairoLoadPreferences(firestoreData);
   } else {
-    // No Firestore data yet — just set from Firebase user object
     if (window.__kairoSetProfile) {
       window.__kairoSetProfile({
         name:     user.displayName || user.email?.split("@")[0] || "User",
@@ -255,9 +276,7 @@ async function onSignInSuccess(user, isNewUser = false) {
   }
 
   // 3) Navigate
-  if (window.__kairoGoHome) {
-    window.__kairoGoHome(user, isNewUser);
-  }
+  if (window.__kairoGoHome) window.__kairoGoHome(user, isNewUser);
 }
 
 // ─── getRedirectResult (runs on EVERY page load) ───
@@ -285,15 +304,31 @@ async function onSignInSuccess(user, isNewUser = false) {
 // Fires on every page load to restore the persisted session
 onAuthStateChanged(auth, async (user) => {
   if (user) {
-    console.log("[KAIRO Auth] Session restored for:", user.email);
+    console.log("[KAIRO Auth] Session detected for:", user.email);
 
-    // Hydrate profile immediately from Firebase user (fast path)
+    // Fetch Firestore data
+    const firestoreData = await fetchUserFromFirestore(user).catch(() => null);
+    
+    // If they have a profile, they are "Verified" (Old User)
+    const isVerified = !!firestoreData; 
+
+    // ── GATE: block only if truly new user with no profile ──
+    if (!isVerified) {
+      console.warn("[KAIRO Auth] New user session with no profile — blocking.");
+      if (window.__kairoHideSplash) window.__kairoHideSplash();
+      showVerifyScreen(user);
+      return;
+    }
+
+    console.log("[KAIRO Auth] Session restored (verified) for:", user.email);
+
+    // Hydrate profile immediately (fast path)
     const displayName = user.displayName || user.email?.split("@")[0] || "User";
     if (window.__kairoSetProfile) {
       window.__kairoSetProfile({ name: displayName, email: user.email || "", photoURL: user.photoURL || "" });
     }
 
-    // Then enrich from Firestore in the background
+    // Enrich from Firestore in background
     fetchUserFromFirestore(user).then((data) => {
       if (!data) return;
       if (window.__kairoSetProfile) {
@@ -306,14 +341,12 @@ onAuthStateChanged(auth, async (user) => {
       if (data.chatHistory && Array.isArray(data.chatHistory) && window.__kairoLoadHistory) {
         window.__kairoLoadHistory(data.chatHistory);
       }
-      if (window.__kairoLoadPreferences) {
-        window.__kairoLoadPreferences(data);
-      }
+      if (window.__kairoLoadPreferences) window.__kairoLoadPreferences(data);
     }).catch(() => {});
 
-    // Navigate if currently on an auth/onboarding screen
+    // Navigate if on an auth/onboarding screen
     const active = document.querySelector(".screen.is-active");
-    const authScreens = ["onboarding", "signin", "signup"];
+    const authScreens = ["onboarding", "signin", "signup", "verify-email"];
     if (!active || authScreens.includes(active.dataset?.screen)) {
       if (window.__kairoGoHome) window.__kairoGoHome(user, false);
     } else {
@@ -331,12 +364,127 @@ onAuthStateChanged(auth, async (user) => {
         if (window.__kairoSetScreen) window.__kairoSetScreen("onboarding");
       }, 100);
     } else {
-      // First load with no session — let the splash play, then show onboarding
       setTimeout(() => {
         if (window.__kairoHideSplash) window.__kairoHideSplash();
       }, 1200);
     }
   }
+});
+
+// ─── Verify-Email screen handlers (OTP) ───
+document.addEventListener("DOMContentLoaded", () => {
+  // ── OTP digit auto-advance ──
+  function initOTPInputs() {
+    const digits = document.querySelectorAll(".otp-digit");
+    digits.forEach((input, i) => {
+      input.addEventListener("input", (e) => {
+        const val = e.target.value.replace(/\D/g, "");
+        input.value = val.slice(-1);
+        if (val && i < digits.length - 1) digits[i + 1].focus();
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !input.value && i > 0) digits[i - 1].focus();
+        if (e.key === "Enter") document.getElementById("verify-done-btn")?.click();
+      });
+      input.addEventListener("paste", (e) => {
+        const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+        if (pasted.length === 6) {
+          digits.forEach((d, j) => d.value = pasted[j] || "");
+          digits[5].focus();
+          e.preventDefault();
+        }
+      });
+    });
+  }
+  initOTPInputs();
+
+  function getOTPValue() {
+    return [...document.querySelectorAll(".otp-digit")].map(d => d.value).join("");
+  }
+
+  function clearOTPInputs() {
+    document.querySelectorAll(".otp-digit").forEach(d => d.value = "");
+    document.querySelector(".otp-digit")?.focus();
+  }
+
+  // ── "Verify Code" button ──
+  document.getElementById("verify-done-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("verify-done-btn");
+    const statusEl = document.getElementById("verify-status-msg");
+    const code = getOTPValue();
+    const email = auth.currentUser?.email;
+
+    if (code.length < 6) {
+      statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ Please enter all 6 digits.</p>`;
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Verifying…";
+    statusEl.innerHTML = "";
+
+    try {
+      const res = await fetch("/api/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        statusEl.innerHTML = `<p style="color:#1a7a4a;font-weight:600;text-align:center;margin:0;">✅ Email verified! Logging you in…</p>`;
+        
+        // ── PERSIST VERIFICATION ──
+        // Save verification status to Firestore so the user doesn't get blocked again
+        await saveUserToFirestore(auth.currentUser, { isVerified: true });
+        
+        // Proceed to app (force verified to skip stale Firestore checks)
+        await onSignInSuccess(auth.currentUser, true, true);
+      } else {
+        statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ ${data.error}</p>`;
+        clearOTPInputs();
+        btn.disabled = false;
+        btn.textContent = "Verify Code";
+      }
+    } catch {
+      statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ Network error. Please try again.</p>`;
+      btn.disabled = false;
+      btn.textContent = "Verify Code";
+    }
+  });
+
+  // ── "Resend" button ──
+  document.getElementById("verify-resend-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("verify-resend-btn");
+    const statusEl = document.getElementById("verify-status-msg");
+    const email = auth.currentUser?.email;
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    try {
+      const res = await fetch("/api/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        statusEl.innerHTML = `<p style="color:#1a7a4a;font-weight:600;text-align:center;margin:0;">✅ New code sent to ${email}</p>`;
+        clearOTPInputs();
+      } else {
+        statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ ${data.error}</p>`;
+      }
+      setTimeout(() => { btn.disabled = false; btn.textContent = "Resend"; }, 30000);
+    } catch {
+      statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ Failed to send. Try again.</p>`;
+      btn.disabled = false;
+      btn.textContent = "Resend";
+    }
+  });
+
+  // ── "Sign Out" link ──
+  document.getElementById("verify-signout-btn")?.addEventListener("click", async () => {
+    await signOut(auth);
+  });
 });
 
 // ─── Email/Password Sign In ───
@@ -363,7 +511,19 @@ export async function firebaseSignUp(name, email, password) {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     if (name) await updateProfile(cred.user, { displayName: name });
-    await onSignInSuccess(cred.user, true);
+    // Send OTP via our backend (Gmail → shows as 'KAIRO', no spam)
+    const otpRes = await fetch("/api/send-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: cred.user.email })
+    });
+    if (!otpRes.ok) {
+      const data = await otpRes.json();
+      throw new Error(data.error || "Failed to send OTP.");
+    }
+    console.log("[KAIRO Auth] OTP sent to:", cred.user.email);
+    showVerifyScreen(cred.user);
+    if (window.__kairoHideSplash) window.__kairoHideSplash();
   } catch (err) {
     const msg = friendlyError(err.code);
     if (msg) showAuthError(msg);

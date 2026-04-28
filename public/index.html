@@ -215,6 +215,54 @@
             </div>
           </section>
 
+          <!-- ─── Email Verification Screen ─── -->
+          <section class="screen screen--auth" data-screen="verify-email">
+            <div class="screen-shell auth-shell">
+              <div class="screen-head">
+                <p class="eyebrow">Almost There</p>
+                <h2>Check Your Email</h2>
+                <p>We sent a 6-digit code to <strong id="verify-email-display"></strong>. Enter it below to activate your account.</p>
+              </div>
+
+              <div class="glass-card auth-card verify-card">
+                <!-- Envelope animation -->
+                <div class="verify-icon-wrap" aria-hidden="true">
+                  <div class="verify-envelope">
+                    <div class="verify-envelope-letter">✉️</div>
+                  </div>
+                  <div class="verify-pulse"></div>
+                </div>
+
+                <!-- OTP inputs -->
+                <div class="otp-input-row" id="otp-input-row">
+                  <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="Digit 1" />
+                  <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="Digit 2" />
+                  <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="Digit 3" />
+                  <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="Digit 4" />
+                  <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="Digit 5" />
+                  <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" aria-label="Digit 6" />
+                </div>
+
+                <div id="verify-status-msg"></div>
+
+                <button class="cta-button cta-button--full" type="button" id="verify-done-btn">
+                  Verify Code
+                </button>
+
+                <div class="otp-resend-row">
+                  <span class="verify-hint">Didn't get the code?</span>
+                  <button class="text-button" type="button" id="verify-resend-btn">Resend</button>
+                </div>
+              </div>
+
+              <p class="auth-switch" style="margin-top:16px;">
+                Wrong account?
+                <button type="button" class="text-button" id="verify-signout-btn">Sign Out</button>
+              </p>
+            </div>
+          </section>
+
+
           <section class="screen screen--app" data-screen="home">
             <div class="screen-shell screen-shell--chat">
               <header class="kairo-topbar" aria-label="Home top bar">

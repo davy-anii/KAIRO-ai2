@@ -2355,3 +2355,119 @@ body {
   }
 }
 
+
+/* ─── Email Verification Screen ─── */
+.verify-card {
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.verify-icon-wrap {
+  position: relative;
+  width: 90px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px auto 0;
+}
+
+.verify-envelope {
+  width: 72px;
+  height: 54px;
+  background: linear-gradient(135deg, #fff8d6, #fef3b0);
+  border: 2px solid rgba(200, 170, 0, 0.3);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 4px 16px rgba(200,170,0,0.15);
+  animation: envelope-float 3s ease-in-out infinite;
+  z-index: 1;
+}
+
+.verify-envelope-letter {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.verify-pulse {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(200, 170, 0, 0.4);
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+@keyframes envelope-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.85); opacity: 0.8; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+.verify-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted, #888);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.cta-button--outline {
+  background: transparent;
+  border: 2px solid currentColor;
+  color: inherit;
+  opacity: 0.75;
+}
+
+.cta-button--outline:hover {
+  opacity: 1;
+  background: rgba(255,255,255,0.08);
+}
+
+/* ─── OTP Digit Inputs ─── */
+.otp-input-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 4px 0 8px;
+}
+
+.otp-digit {
+  width: 44px;
+  height: 54px;
+  border: 2px solid rgba(130,181,145,0.35);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  color: inherit;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  caret-color: transparent;
+}
+
+.otp-digit:focus {
+  border-color: rgba(130,181,145,0.8);
+  box-shadow: 0 0 0 3px rgba(130,181,145,0.15);
+  transform: scale(1.05);
+}
+
+.otp-digit:not(:placeholder-shown) {
+  border-color: rgba(130,181,145,0.6);
+  background: rgba(130,181,145,0.08);
+}
+
+.otp-resend-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+}

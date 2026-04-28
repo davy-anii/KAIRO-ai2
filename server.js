@@ -1,11 +1,147 @@
 require("dotenv").config();
-const express = require("express");
+const express    = require("express");
+const nodemailer = require("nodemailer");
+const fs         = require("fs");
+const path       = require("path");
 
-const app = express();
+// Load KAIRO logo once at startup (embedded as base64 so it works in all email clients)
+const kairoLogoBase64 = fs.readFileSync(
+  path.join(__dirname, "public", "icons", "icon-192.png")
+).toString("base64");
+const kairoLogoSrc = `data:image/png;base64,${kairoLogoBase64}`;
+
+const app  = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json({ limit: "25mb" }));
 app.use(express.static("public"));
+
+// ─── OTP Store (in-memory, expires in 10 min) ───
+const otpStore = new Map(); // email -> { code, expiresAt, attempts }
+
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+function createTransporter() {
+  return nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+}
+
+// ─── POST /api/send-otp ───
+app.post("/api/send-otp", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email is required." });
+
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    return res.status(503).json({ error: "Email service not configured. Add EMAIL_USER and EMAIL_PASS to .env" });
+  }
+
+  const otp = generateOTP();
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+  otpStore.set(email.toLowerCase(), { code: otp, expiresAt, attempts: 0 });
+
+  const htmlTemplate = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KAIRO – Email Verification</title>
+</head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#111,#1a1a1a);border-radius:20px;border:1px solid rgba(130,181,145,0.2);overflow:hidden;">
+        <!-- Header with KAIRO logo -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#1c3d2a,#2d5a3f);padding:32px 40px;text-align:center;">
+            <img src="${kairoLogoSrc}" width="72" height="72" alt="KAIRO" style="border-radius:18px;display:block;margin:0 auto 14px;box-shadow:0 4px 20px rgba(0,0,0,0.4);" />
+            <div style="font-size:26px;font-weight:800;color:#fff;letter-spacing:4px;font-family:'Segoe UI',Arial,sans-serif;">KAIRO</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.55);margin-top:4px;letter-spacing:2px;">YOUR AI ASSISTANT</div>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="padding:40px;">
+            <h2 style="color:#f0f0f0;font-size:22px;margin:0 0 12px;font-weight:700;">Verify Your Email</h2>
+            <p style="color:#aaa;font-size:15px;line-height:1.6;margin:0 0 28px;">Enter the 6-digit code below to activate your KAIRO account. This code expires in <strong style="color:#82b591;">10 minutes</strong>.</p>
+
+            <!-- OTP Box -->
+            <div style="background:rgba(130,181,145,0.08);border:2px solid rgba(130,181,145,0.3);border-radius:16px;padding:28px;text-align:center;margin:0 0 28px;">
+              <div style="font-size:48px;font-weight:800;letter-spacing:12px;color:#82b591;font-family:'Courier New',monospace;">${otp}</div>
+              <div style="font-size:12px;color:#888;margin-top:10px;">Valid for 10 minutes · Do not share this code</div>
+            </div>
+
+            <p style="color:#888;font-size:13px;line-height:1.6;margin:0;">If you didn't create a KAIRO account, you can safely ignore this email.</p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:rgba(0,0,0,0.3);padding:20px 40px;text-align:center;border-top:1px solid rgba(255,255,255,0.06);">
+            <div style="font-size:12px;color:#555;">&copy; ${new Date().getFullYear()} KAIRO AI &nbsp;·&nbsp; Your AI Assistant</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: `"KAIRO" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `${otp} is your KAIRO verification code`,
+      html: htmlTemplate,
+      text: `Your KAIRO verification code is: ${otp}\n\nThis code expires in 10 minutes. Do not share it with anyone.`
+    });
+    console.log(`[KAIRO OTP] Code sent to ${email}`);
+    res.json({ success: true, message: "OTP sent successfully." });
+  } catch (err) {
+    console.error("[KAIRO OTP] Failed to send email:", err.message);
+    res.status(500).json({ error: "Failed to send verification email. Check EMAIL_USER/EMAIL_PASS in .env" });
+  }
+});
+
+// ─── POST /api/verify-otp ───
+app.post("/api/verify-otp", (req, res) => {
+  const { email, code } = req.body;
+  if (!email || !code) return res.status(400).json({ error: "Email and code are required." });
+
+  const record = otpStore.get(email.toLowerCase());
+
+  if (!record) {
+    return res.status(400).json({ error: "No OTP found for this email. Request a new code." });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(email.toLowerCase());
+    return res.status(400).json({ error: "OTP has expired. Please request a new code." });
+  }
+
+  record.attempts += 1;
+  if (record.attempts > 5) {
+    otpStore.delete(email.toLowerCase());
+    return res.status(429).json({ error: "Too many attempts. Request a new code." });
+  }
+
+  if (record.code !== code.trim()) {
+    return res.status(400).json({ error: `Incorrect code. ${5 - record.attempts} attempts remaining.` });
+  }
+
+  // Correct!
+  otpStore.delete(email.toLowerCase());
+  console.log(`[KAIRO OTP] Email verified: ${email}`);
+  res.json({ success: true, message: "Email verified successfully." });
+});
+
 
 // ─── Text helpers ───
 const normalizeText = (v) =>

@@ -945,11 +945,13 @@ window.__kairoGoHome = function (user, isNewUser = false) {
   }
 
   hideSplash();
+  
+  // ALWAYS set screen to home first to hide any auth/verify screens
+  setScreen("home");
 
   if (isNewUser) {
+    // Then show the welcome greeting overlay on top of home
     setTimeout(() => showGreeting(user), 80);
-  } else {
-    setScreen("home");
   }
 };
 
