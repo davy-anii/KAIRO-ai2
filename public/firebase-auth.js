@@ -361,8 +361,9 @@ onAuthStateChanged(auth, async (user) => {
     if (window.__kairoHideGreeting) window.__kairoHideGreeting();
 
     const active = document.querySelector(".screen.is-active");
-    const appScreens = ["home", "chat", "history", "profile"];
-    if (active && appScreens.includes(active.dataset?.screen)) {
+    // If we are signed out, and currently on an app screen OR the verify screen, go back to start
+    const protectedScreens = ["home", "chat", "history", "profile", "verify-email"];
+    if (active && protectedScreens.includes(active.dataset?.screen)) {
       setTimeout(() => {
         if (window.__kairoSetScreen) window.__kairoSetScreen("onboarding");
       }, 100);
@@ -487,6 +488,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ── "Sign Out" link ──
   document.getElementById("verify-signout-btn")?.addEventListener("click", async () => {
     await signOut(auth);
+    if (window.__kairoSetScreen) window.__kairoSetScreen("onboarding");
   });
 });
 
