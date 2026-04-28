@@ -36,9 +36,19 @@ app.post("/api/send-otp", async (req, res) => {
     return res.status(503).json({ error: "Email service not configured. Add EMAIL_USER and EMAIL_PASS to .env" });
   }
 
-  const otp = generateOTP();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-  otpStore.set(email.toLowerCase(), { code: otp, expiresAt, attempts: 0 });
+  let otp;
+  let expiresAt;
+  const existing = otpStore.get(email.toLowerCase());
+
+  // Reuse existing OTP if it's still valid for at least 2 more minutes
+  if (existing && existing.expiresAt > Date.now() + 120000) {
+    otp = existing.code;
+    expiresAt = existing.expiresAt;
+  } else {
+    otp = generateOTP();
+    expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    otpStore.set(email.toLowerCase(), { code: otp, expiresAt, attempts: 0 });
+  }
 
   const htmlTemplate = `<!DOCTYPE html>
 <html>
