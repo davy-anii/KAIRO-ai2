@@ -4,12 +4,6 @@ const nodemailer = require("nodemailer");
 const fs         = require("fs");
 const path       = require("path");
 
-// Load KAIRO logo once at startup (embedded as base64 so it works in all email clients)
-const kairoLogoBase64 = fs.readFileSync(
-  path.join(__dirname, "public", "icons", "icon-192.png")
-).toString("base64");
-const kairoLogoSrc = `data:image/png;base64,${kairoLogoBase64}`;
-
 const app  = express();
 const port = process.env.PORT || 3000;
 
@@ -62,7 +56,7 @@ app.post("/api/send-otp", async (req, res) => {
           <td style="background:linear-gradient(135deg,#ffd700,#ffe84d);padding:40px;text-align:center;">
             <div style="background:#ffffff;width:80px;height:80px;border-radius:22px;margin:0 auto 16px;display:table;box-shadow:0 8px 24px rgba(180,120,0,0.2);">
                <div style="display:table-cell;vertical-align:middle;text-align:center;">
-                 <img src="${kairoLogoSrc}" width="60" height="60" alt="KAIRO" style="display:block;margin:auto;" />
+               <img src="cid:kairo-logo" width="60" height="60" alt="KAIRO" style="display:block;margin:auto;" />
                </div>
             </div>
             <div style="font-size:28px;font-weight:900;color:#1a1000;letter-spacing:4px;margin:0;">KAIRO</div>
@@ -98,12 +92,25 @@ app.post("/api/send-otp", async (req, res) => {
 
   try {
     const transporter = createTransporter();
+    
+    // CID Attachment: This is the most reliable way to show images in email
+    const logoPath = path.join(__dirname, "public", "icons", "icon-192.png");
+    const attachments = [];
+    if (fs.existsSync(logoPath)) {
+      attachments.push({
+        filename: "logo.png",
+        path: logoPath,
+        cid: "kairo-logo" 
+      });
+    }
+
     await transporter.sendMail({
       from: `"KAIRO" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: `${otp} is your KAIRO verification code`,
       html: htmlTemplate,
-      text: `Your KAIRO verification code is: ${otp}\n\nThis code expires in 10 minutes. Do not share it with anyone.`
+      text: `Your KAIRO verification code is: ${otp}\n\nThis code expires in 10 minutes.`,
+      attachments: attachments
     });
     console.log(`[KAIRO OTP] Code sent to ${email}`);
     res.json({ success: true, message: "OTP sent successfully." });
