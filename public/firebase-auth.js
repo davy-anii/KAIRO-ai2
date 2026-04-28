@@ -54,6 +54,9 @@ setPersistence(auth, browserLocalPersistence).catch(() => {});
 
 // ─── Providers ───
 const googleProvider = new GoogleAuthProvider();
+
+// Store sign-up data temporarily until OTP is verified
+let pendingSignUpData = null;
 googleProvider.setCustomParameters({ prompt: "select_account" });
 
 const appleProvider = new OAuthProvider("apple.com");
@@ -211,10 +214,10 @@ async function fetchUserFromFirestore(user) {
 }
 
 // ─── Show the Email Verification waiting screen ───
-function showVerifyScreen(user) {
-  const emailEl = document.getElementById("verify-email-display");
-  if (emailEl) emailEl.textContent = user?.email || "";
+function showVerifyScreen(email) {
   if (window.__kairoSetScreen) window.__kairoSetScreen("verify-email");
+  const emailDisplay = document.getElementById("verify-email-display");
+  if (emailDisplay) emailDisplay.textContent = email || "your email";
   if (window.__kairoHideSplash) window.__kairoHideSplash();
 }
 
@@ -319,7 +322,7 @@ onAuthStateChanged(auth, async (user) => {
     if (!isVerified) {
       console.warn("[KAIRO Auth] New user session with no profile — blocking.");
       if (window.__kairoHideSplash) window.__kairoHideSplash();
-      showVerifyScreen(user);
+      showVerifyScreen(user.email);
       return;
     }
 
@@ -416,7 +419,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("verify-done-btn");
     const statusEl = document.getElementById("verify-status-msg");
     const code = getOTPValue();
-    const email = auth.currentUser?.email;
+    
+    // Use pending email if user isn't created yet
+    const email = auth.currentUser?.email || pendingSignUpData?.email;
 
     if (code.length < 6) {
       statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ Please enter all 6 digits.</p>`;
@@ -436,14 +441,32 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        statusEl.innerHTML = `<p style="color:#1a7a4a;font-weight:600;text-align:center;margin:0;">✅ Email verified! Logging you in…</p>`;
+        statusEl.innerHTML = `<p style="color:#1a7a4a;font-weight:600;text-align:center;margin:0;">✅ Email verified! Finalizing account…</p>`;
         
-        // ── PERSIST VERIFICATION ──
-        // Save verification status to Firestore so the user doesn't get blocked again
-        await saveUserToFirestore(auth.currentUser, { isVerified: true });
-        
-        // Proceed to app (force verified to skip stale Firestore checks)
-        await onSignInSuccess(auth.currentUser, true, true);
+        let userToVerify = auth.currentUser;
+
+        // ── DELAYED FIREBASE CREATION ──
+        if (!userToVerify && pendingSignUpData) {
+          try {
+            const cred = await createUserWithEmailAndPassword(auth, pendingSignUpData.email, pendingSignUpData.password);
+            userToVerify = cred.user;
+            if (pendingSignUpData.name) {
+              await updateProfile(userToVerify, { displayName: pendingSignUpData.name });
+            }
+          } catch (createErr) {
+            statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ Account creation failed: ${createErr.message}</p>`;
+            btn.disabled = false;
+            return;
+          }
+        }
+
+        if (userToVerify) {
+          // Save verification status to Firestore
+          await saveUserToFirestore(userToVerify, { isVerified: true });
+          // Proceed to app
+          await onSignInSuccess(userToVerify, true, true);
+          pendingSignUpData = null; // Clear memory
+        }
       } else {
         statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ ${data.error}</p>`;
         clearOTPInputs();
@@ -461,7 +484,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("verify-resend-btn")?.addEventListener("click", async () => {
     const btn = document.getElementById("verify-resend-btn");
     const statusEl = document.getElementById("verify-status-msg");
-    const email = auth.currentUser?.email;
+    const email = auth.currentUser?.email || pendingSignUpData?.email;
     btn.disabled = true;
     btn.textContent = "Sending…";
     try {
@@ -512,22 +535,23 @@ export async function firebaseSignIn(email, password) {
 export async function firebaseSignUp(name, email, password) {
   clearAuthErrors();
   const btn = document.querySelector("#signup-form .cta-button[type='submit']");
-  setButtonLoading(btn, true, "Creating account…");
+  setButtonLoading(btn, true, "Preparing…");
   try {
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    if (name) await updateProfile(cred.user, { displayName: name });
-    // Send OTP via our backend (Gmail → shows as 'KAIRO', no spam)
+    // ── DELAYED CREATION FLOW ──
+    // We store info and ONLY create in Firebase AFTER OTP success
+    pendingSignUpData = { name, email, password };
+
     const otpRes = await fetch("/api/send-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cred.user.email })
+      body: JSON.stringify({ email })
     });
     if (!otpRes.ok) {
       const data = await otpRes.json();
       throw new Error(data.error || "Failed to send OTP.");
     }
-    console.log("[KAIRO Auth] OTP sent to:", cred.user.email);
-    showVerifyScreen(cred.user);
+    console.log("[KAIRO Auth] OTP sent to:", email);
+    showVerifyScreen(email);
     if (window.__kairoHideSplash) window.__kairoHideSplash();
   } catch (err) {
     const msg = friendlyError(err.code);
