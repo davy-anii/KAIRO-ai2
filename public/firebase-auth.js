@@ -231,8 +231,10 @@ async function onSignInSuccess(user, isNewUser = false, forceVerified = false) {
   // LOGIC: 
   // - If forceVerified is true (just finished OTP), they are good.
   // - If they ALREADY HAVE a profile in Firestore, they are an "Old User" -> Let them in.
-  // - If they have NO profile, they are a "New User" -> Enforce OTP.
-  const isVerified = forceVerified || !!firestoreData;
+  // - If they signed in via Google/Apple, skip verification (Social Auth).
+  // - ONLY new email/password sign-ups must verify.
+  const isSocial = user.providerData?.some(p => p.providerId !== 'password');
+  const isVerified = forceVerified || !!firestoreData || isSocial;
 
   if (!isVerified) {
     console.log("[KAIRO Auth] New user (no profile) detected — enforcing OTP.");
@@ -309,8 +311,9 @@ onAuthStateChanged(auth, async (user) => {
     // Fetch Firestore data
     const firestoreData = await fetchUserFromFirestore(user).catch(() => null);
     
-    // If they have a profile, they are "Verified" (Old User)
-    const isVerified = !!firestoreData; 
+    // If they have a profile OR are a social user (Google/Apple), they are "Verified"
+    const isSocial = user.providerData?.some(p => p.providerId !== 'password');
+    const isVerified = !!firestoreData || isSocial; 
 
     // ── GATE: block only if truly new user with no profile ──
     if (!isVerified) {
