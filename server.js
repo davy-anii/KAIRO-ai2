@@ -7,10 +7,6 @@ const path       = require("path");
 const app  = express();
 const port = process.env.PORT || 3000;
 
-// Load a small version of the logo as base64 to avoid attachments in the inbox list
-const logoBase64 = fs.readFileSync(path.join(__dirname, "public", "icons", "favicon-48x48.png")).toString("base64");
-const logoSrc = `data:image/png;base64,${logoBase64}`;
-
 app.use(express.json({ limit: "25mb" }));
 app.use(express.static("public"));
 
@@ -58,10 +54,16 @@ app.post("/api/send-otp", async (req, res) => {
         <!-- Header: Golden Gradient -->
         <tr>
           <td style="background:linear-gradient(135deg,#ffd700,#ffe84d);padding:40px;text-align:center;">
-            <div style="background:#ffffff;width:80px;height:80px;border-radius:22px;margin:0 auto 16px;display:table;box-shadow:0 8px 24px rgba(180,120,0,0.2);">
-               <div style="display:table-cell;vertical-align:middle;text-align:center;">
-               <img src="${logoSrc}" width="60" height="60" alt="K" style="display:block;margin:auto;border-radius:12px;" />
-               </div>
+            <!-- High-performance SVG Logo (loads instantly, even on low internet) -->
+            <div style="background:#ffffff;width:80px;height:80px;border-radius:22px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(180,120,0,0.2);">
+               <svg width="50" height="50" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:auto;">
+                 <rect x="3" y="6" width="18" height="13" rx="4" fill="#ffd700"/>
+                 <circle cx="8" cy="12" r="1.5" fill="#1a1000"/>
+                 <circle cx="16" cy="12" r="1.5" fill="#1a1000"/>
+                 <path d="M12 2V6" stroke="#ffd700" stroke-width="2" stroke-linecap="round"/>
+                 <circle cx="12" cy="2" r="1" fill="#ffd700"/>
+                 <path d="M9 16C9 16 10.5 17.5 12 17.5C13.5 17.5 15 16 15 16" stroke="#1a1000" stroke-width="1.5" stroke-linecap="round"/>
+               </svg>
             </div>
             <div style="font-size:28px;font-weight:900;color:#1a1000;letter-spacing:4px;margin:0;">KAIRO</div>
             <div style="font-size:12px;color:rgba(26,16,0,0.6);margin-top:4px;letter-spacing:2px;font-weight:700;text-transform:uppercase;">Your AI Assistant</div>
