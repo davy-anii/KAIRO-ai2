@@ -46,45 +46,48 @@ app.post("/api/send-otp", async (req, res) => {
   const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
   otpStore.set(email.toLowerCase(), { code: otp, expiresAt, attempts: 0 });
 
-  const htmlTemplate = `
-<!DOCTYPE html>
+  const htmlTemplate = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KAIRO – Email Verification</title>
 </head>
-<body style="margin:0;padding:0;background:#0a0a0a;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 20px;">
+<body style="margin:0;padding:0;background:#fffdf0;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffdf0;padding:40px 20px;">
     <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#111,#1a1a1a);border-radius:20px;border:1px solid rgba(130,181,145,0.2);overflow:hidden;">
-        <!-- Header with KAIRO logo -->
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:32px;border:1.5px solid rgba(255,200,0,0.3);overflow:hidden;box-shadow:0 24px 48px rgba(180,120,0,0.12);">
+        <!-- Header: Golden Gradient -->
         <tr>
-          <td style="background:linear-gradient(135deg,#1c3d2a,#2d5a3f);padding:32px 40px;text-align:center;">
-            <img src="${kairoLogoSrc}" width="72" height="72" alt="KAIRO" style="border-radius:18px;display:block;margin:0 auto 14px;box-shadow:0 4px 20px rgba(0,0,0,0.4);" />
-            <div style="font-size:26px;font-weight:800;color:#fff;letter-spacing:4px;font-family:'Segoe UI',Arial,sans-serif;">KAIRO</div>
-            <div style="font-size:12px;color:rgba(255,255,255,0.55);margin-top:4px;letter-spacing:2px;">YOUR AI ASSISTANT</div>
+          <td style="background:linear-gradient(135deg,#ffd700,#ffe84d);padding:40px;text-align:center;">
+            <div style="background:#ffffff;width:80px;height:80px;border-radius:22px;margin:0 auto 16px;display:table;box-shadow:0 8px 24px rgba(180,120,0,0.2);">
+               <div style="display:table-cell;vertical-align:middle;text-align:center;">
+                 <img src="${kairoLogoSrc}" width="60" height="60" alt="KAIRO" style="display:block;margin:auto;" />
+               </div>
+            </div>
+            <div style="font-size:28px;font-weight:900;color:#1a1000;letter-spacing:4px;margin:0;">KAIRO</div>
+            <div style="font-size:12px;color:rgba(26,16,0,0.6);margin-top:4px;letter-spacing:2px;font-weight:700;text-transform:uppercase;">Your AI Assistant</div>
           </td>
         </tr>
         <!-- Body -->
         <tr>
-          <td style="padding:40px;">
-            <h2 style="color:#f0f0f0;font-size:22px;margin:0 0 12px;font-weight:700;">Verify Your Email</h2>
-            <p style="color:#aaa;font-size:15px;line-height:1.6;margin:0 0 28px;">Enter the 6-digit code below to activate your KAIRO account. This code expires in <strong style="color:#82b591;">10 minutes</strong>.</p>
+          <td style="padding:48px 40px;text-align:center;">
+            <h2 style="color:#1a1000;font-size:24px;margin:0 0 12px;font-weight:800;">Verify Your Email</h2>
+            <p style="color:#6b5800;font-size:16px;line-height:1.6;margin:0 0 32px;">To complete your setup, please use the 6-digit verification code below. This code will expire in 10 minutes.</p>
 
-            <!-- OTP Box -->
-            <div style="background:rgba(130,181,145,0.08);border:2px solid rgba(130,181,145,0.3);border-radius:16px;padding:28px;text-align:center;margin:0 0 28px;">
-              <div style="font-size:48px;font-weight:800;letter-spacing:12px;color:#82b591;font-family:'Courier New',monospace;">${otp}</div>
-              <div style="font-size:12px;color:#888;margin-top:10px;">Valid for 10 minutes · Do not share this code</div>
+            <!-- OTP Box: Vibrant Yellow -->
+            <div style="background:rgba(255,215,0,0.12);border:2.5px dashed #ffd700;border-radius:24px;padding:32px;margin:0 0 32px;">
+              <div style="font-size:52px;font-weight:900;letter-spacing:14px;color:#1a1000;font-family:'Courier New',monospace;">${otp}</div>
+              <div style="font-size:13px;color:#8a7000;margin-top:12px;font-weight:600;">Valid for 10 minutes · Do not share</div>
             </div>
 
-            <p style="color:#888;font-size:13px;line-height:1.6;margin:0;">If you didn't create a KAIRO account, you can safely ignore this email.</p>
+            <p style="color:#9a8a4a;font-size:13px;line-height:1.6;margin:0;">If you didn't request this code, you can safely ignore this email.</p>
           </td>
         </tr>
         <!-- Footer -->
         <tr>
-          <td style="background:rgba(0,0,0,0.3);padding:20px 40px;text-align:center;border-top:1px solid rgba(255,255,255,0.06);">
-            <div style="font-size:12px;color:#555;">&copy; ${new Date().getFullYear()} KAIRO AI &nbsp;·&nbsp; Your AI Assistant</div>
+          <td style="background:#fffbea;padding:24px 40px;text-align:center;border-top:1px solid rgba(255,200,0,0.15);">
+            <div style="font-size:12px;color:#8a7000;font-weight:500;">&copy; ${new Date().getFullYear()} KAIRO AI &nbsp;·&nbsp; Space Intelligence</div>
           </td>
         </tr>
       </table>
