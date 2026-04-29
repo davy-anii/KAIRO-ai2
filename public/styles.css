@@ -2410,7 +2410,17 @@ body {
   .device-shell {
     width: 430px;
     height: min(calc(100dvh - 48px), 932px);
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s ease;
   }
+
+  .device-shell.is-expanded {
+    width: min(96%, 1200px) !important;
+    max-width: 96% !important;
+  }
+}
+
+.hide-on-mobile {
+  display: flex !important;
 }
 
 /* Mobile (<= 480px): full-bleed, no rounded corners */

@@ -45,7 +45,8 @@
     <div class="bg-orbit bg-orbit--two" aria-hidden="true"></div>
 
     <main class="app-stage">
-      <section class="device-shell" aria-label="KAIRO mobile app">
+      <section class="device-shell" id="main-shell" aria-label="KAIRO mobile app">
+
 
 
         <!-- ─── Splash Screen ─── -->
@@ -290,6 +291,9 @@
                 </button>
                 <button type="button" class="home-menu-item home-menu-item--icon" data-target="profile">
                   <i data-lucide="user" class="home-menu-icon" aria-hidden="true"></i> Profile
+                </button>
+                <button type="button" class="home-menu-item home-menu-item--icon hide-on-mobile" id="home-menu-expand">
+                  <i data-lucide="maximize-2" class="home-menu-icon" id="expand-icon" aria-hidden="true"></i> <span id="expand-text">Expand View</span>
                 </button>
                 <div class="home-menu-divider"></div>
                 <button type="button" class="home-menu-item home-menu-item--signout" data-target="signin">

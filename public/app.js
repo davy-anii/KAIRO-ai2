@@ -860,6 +860,27 @@ function toggleHomeMenu() {
   homeMenuBtnEl?.setAttribute("aria-expanded", String(shouldOpen));
 }
 
+// ─── View Expansion Logic (Desktop/Tablet) ───
+const expandBtn = document.getElementById("home-menu-expand");
+const mainShell = document.getElementById("main-shell");
+const expandIcon = document.getElementById("expand-icon");
+const expandText = document.getElementById("expand-text");
+
+if (expandBtn && mainShell) {
+  expandBtn.addEventListener("click", () => {
+    const isExpanded = mainShell.classList.toggle("is-expanded");
+    
+    // Update button text and icon
+    if (expandText) expandText.textContent = isExpanded ? "Compact View" : "Expand View";
+    if (expandIcon) {
+      expandIcon.setAttribute("data-lucide", isExpanded ? "minimize-2" : "maximize-2");
+      if (window.lucide?.createIcons) window.lucide.createIcons();
+    }
+    
+    closeHomeMenu();
+  });
+}
+
 // ─── Firebase Auth bridge ───
 
 // Helper: get a time-based greeting
@@ -1324,7 +1345,7 @@ async function submitComposer(mode) {
     const data = await response.json();
     typingNode.remove();
 
-    let reply = response.ok ? data.reply : data.error || "Something went wrong.";
+    let reply = response.ok ? data.reply : (data.details ? `${data.error} (${data.details})` : (data.error || "Something went wrong."));
 
     // Check if bot wants to generate an image
     const imgMatch = reply.match(/\[GENERATE_IMAGE:\s*(.+?)\]/i);
