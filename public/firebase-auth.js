@@ -45,12 +45,12 @@ const firebaseConfig = {
 
 // ─── Initialize ───
 const firebaseApp = initializeApp(firebaseConfig);
-const analytics  = getAnalytics(firebaseApp);
-const auth       = getAuth(firebaseApp);
-const db         = getFirestore(firebaseApp);
+const analytics = getAnalytics(firebaseApp);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
 
 // Force persistent auth session across page reloads / redirects
-setPersistence(auth, browserLocalPersistence).catch(() => {});
+setPersistence(auth, browserLocalPersistence).catch(() => { });
 
 // ─── Providers ───
 const googleProvider = new GoogleAuthProvider();
@@ -78,9 +78,9 @@ function showAuthError(msg, isSuccess = false) {
   err.textContent = msg;
   err.style.cssText = isSuccess
     ? "color:#1a7a4a;font-size:0.85rem;font-weight:600;margin:0;padding:8px 12px;" +
-      "background:rgba(26,122,74,0.1);border-radius:10px;border:1px solid rgba(26,122,74,0.25);line-height:1.4;"
+    "background:rgba(26,122,74,0.1);border-radius:10px;border:1px solid rgba(26,122,74,0.25);line-height:1.4;"
     : "color:#a32b1a;font-size:0.85rem;font-weight:600;margin:0;padding:8px 12px;" +
-      "background:rgba(192,57,43,0.1);border-radius:10px;border:1px solid rgba(192,57,43,0.2);line-height:1.4;";
+    "background:rgba(192,57,43,0.1);border-radius:10px;border:1px solid rgba(192,57,43,0.2);line-height:1.4;";
 
   const activeForm =
     document.querySelector(".screen--auth.is-active form") ||
@@ -111,17 +111,17 @@ function setButtonLoading(btn, loading, loadText = "Please wait…") {
 function friendlyError(code) {
   console.warn("[KAIRO Auth] error:", code);
   const map = {
-    "auth/invalid-email":             "❌ Invalid email address.",
-    "auth/user-not-found":            "❌ No account found with this email.",
-    "auth/wrong-password":            "❌ Incorrect password. Try again.",
-    "auth/invalid-credential":        "❌ Incorrect email or password.",
-    "auth/email-already-in-use":      "❌ Email already registered. Sign in instead.",
-    "auth/weak-password":             "❌ Password must be at least 6 characters.",
-    "auth/too-many-requests":         "⏳ Too many attempts. Wait a moment and retry.",
-    "auth/network-request-failed":    "❌ Network error. Check your connection.",
-    "auth/popup-blocked":             "🚫 Popup blocked. Trying redirect instead…",
-    "auth/popup-closed-by-user":      "",    // silent
-    "auth/cancelled-popup-request":   "",    // silent
+    "auth/invalid-email": "❌ Invalid email address.",
+    "auth/user-not-found": "❌ No account found with this email.",
+    "auth/wrong-password": "❌ Incorrect password. Try again.",
+    "auth/invalid-credential": "❌ Incorrect email or password.",
+    "auth/email-already-in-use": "❌ Email already registered. Sign in instead.",
+    "auth/weak-password": "❌ Password must be at least 6 characters.",
+    "auth/too-many-requests": "⏳ Too many attempts. Wait a moment and retry.",
+    "auth/network-request-failed": "❌ Network error. Check your connection.",
+    "auth/popup-blocked": "🚫 Popup blocked. Trying redirect instead…",
+    "auth/popup-closed-by-user": "",    // silent
+    "auth/cancelled-popup-request": "",    // silent
     "auth/unauthorized-domain":
       "🚫 This domain is not authorized in Firebase Console (Authentication → Settings → Authorized domains).",
     "auth/operation-not-allowed":
@@ -130,9 +130,9 @@ function friendlyError(code) {
       "❌ Account exists with a different sign-in method. Try signing in with the original method.",
     "auth/internal-error":
       "⚙️ Internal error. Ensure the sign-in method is enabled in Firebase Console.",
-    "auth/missing-or-invalid-nonce":  "❌ Auth nonce error. Try again.",
-    "auth/app-not-authorized":        "⚙️ App not authorized. Check Firebase project settings.",
-    "auth/invalid-api-key":           "⚙️ Invalid Firebase API key.",
+    "auth/missing-or-invalid-nonce": "❌ Auth nonce error. Try again.",
+    "auth/app-not-authorized": "⚙️ App not authorized. Check Firebase project settings.",
+    "auth/invalid-api-key": "⚙️ Invalid Firebase API key.",
     "auth/redirect-cancelled-by-user": "",   // silent
     "auth/web-storage-unsupported":
       "🚫 Third-party cookies are blocked by your browser. Enable them and try again."
@@ -154,18 +154,18 @@ async function saveUserToFirestore(user, extraData = {}) {
   if (!user?.uid) return;
   try {
     const docId = getUserDocId(user, extraData);
-    const ref  = doc(db, "users", docId);
+    const ref = doc(db, "users", docId);
     const snap = await getDoc(ref);
 
     if (!snap.exists()) {
       // First time — set createdAt too
       const base = {
-        uid:         user.uid,
-        email:       user.email ?? extraData.email ?? "",
+        uid: user.uid,
+        email: user.email ?? extraData.email ?? "",
         displayName: user.displayName ?? extraData.name ?? user.email?.split("@")[0] ?? "User",
-        photoURL:    user.photoURL ?? extraData.photoURL ?? "",
-        lastSignIn:  new Date().toISOString(),
-        createdAt:   new Date().toISOString(),
+        photoURL: user.photoURL ?? extraData.photoURL ?? "",
+        lastSignIn: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         ...extraData
       };
       await setDoc(ref, base);
@@ -173,7 +173,7 @@ async function saveUserToFirestore(user, extraData = {}) {
     } else {
       // Merge — safely update fields without overwriting with empty defaults
       const updates = { ...extraData };
-      
+
       // If a full Firebase Auth user object is passed, update lastSignIn
       if (user.providerData) {
         updates.lastSignIn = new Date().toISOString();
@@ -241,7 +241,7 @@ async function onSignInSuccess(user, isNewUser = false, forceVerified = false) {
 
   if (!isVerified) {
     console.log("[KAIRO Auth] New user (no profile) detected — enforcing OTP.");
-    
+
     // Send OTP only if they haven't just come from a failed verify attempt
     try {
       await fetch("/api/send-otp", {
@@ -249,7 +249,7 @@ async function onSignInSuccess(user, isNewUser = false, forceVerified = false) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: user.email })
       });
-    } catch (e) {}
+    } catch (e) { }
 
     showVerifyScreen(user);
     return;
@@ -261,8 +261,8 @@ async function onSignInSuccess(user, isNewUser = false, forceVerified = false) {
   if (firestoreData) {
     if (window.__kairoSetProfile) {
       window.__kairoSetProfile({
-        name:     firestoreData.displayName || user.displayName || user.email?.split("@")[0] || "User",
-        email:    firestoreData.email    || user.email    || "",
+        name: firestoreData.displayName || user.displayName || user.email?.split("@")[0] || "User",
+        email: firestoreData.email || user.email || "",
         photoURL: firestoreData.photoURL || user.photoURL || ""
       });
     }
@@ -273,8 +273,8 @@ async function onSignInSuccess(user, isNewUser = false, forceVerified = false) {
   } else {
     if (window.__kairoSetProfile) {
       window.__kairoSetProfile({
-        name:     user.displayName || user.email?.split("@")[0] || "User",
-        email:    user.email    || "",
+        name: user.displayName || user.email?.split("@")[0] || "User",
+        email: user.email || "",
         photoURL: user.photoURL || ""
       });
     }
@@ -313,10 +313,10 @@ onAuthStateChanged(auth, async (user) => {
 
     // Fetch Firestore data
     const firestoreData = await fetchUserFromFirestore(user).catch(() => null);
-    
+
     // If they have a profile OR are a social user (Google/Apple), they are "Verified"
     const isSocial = user.providerData?.some(p => p.providerId !== 'password');
-    const isVerified = !!firestoreData || isSocial; 
+    const isVerified = !!firestoreData || isSocial;
 
     // ── GATE: block only if truly new user with no profile ──
     if (!isVerified) {
@@ -339,16 +339,16 @@ onAuthStateChanged(auth, async (user) => {
       if (!data) return;
       if (window.__kairoSetProfile) {
         window.__kairoSetProfile({
-          name:     data.displayName || displayName,
-          email:    data.email       || user.email || "",
-          photoURL: data.photoURL    || user.photoURL || ""
+          name: data.displayName || displayName,
+          email: data.email || user.email || "",
+          photoURL: data.photoURL || user.photoURL || ""
         });
       }
       if (data.chatHistory && Array.isArray(data.chatHistory) && window.__kairoLoadHistory) {
         window.__kairoLoadHistory(data.chatHistory);
       }
       if (window.__kairoLoadPreferences) window.__kairoLoadPreferences(data);
-    }).catch(() => {});
+    }).catch(() => { });
 
     // Navigate if on an auth/onboarding screen
     const active = document.querySelector(".screen.is-active");
@@ -360,7 +360,7 @@ onAuthStateChanged(auth, async (user) => {
     }
   } else {
     // Signed out
-    if (window.__kairoHideSplash)   window.__kairoHideSplash();
+    if (window.__kairoHideSplash) window.__kairoHideSplash();
     if (window.__kairoHideGreeting) window.__kairoHideGreeting();
 
     const active = document.querySelector(".screen.is-active");
@@ -378,57 +378,30 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// ─── Verify-Email screen handlers (OTP) ───
 document.addEventListener("DOMContentLoaded", () => {
-  // ── OTP digit auto-advance ──
-  function initOTPInputs() {
-    const digits = document.querySelectorAll(".otp-digit");
-    digits.forEach((input, i) => {
-      input.addEventListener("input", (e) => {
-        const val = e.target.value.replace(/\D/g, "");
-        input.value = val.slice(-1);
-        if (val && i < digits.length - 1) digits[i + 1].focus();
-      });
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Backspace" && !input.value && i > 0) digits[i - 1].focus();
-        if (e.key === "Enter") document.getElementById("verify-done-btn")?.click();
-      });
-      input.addEventListener("paste", (e) => {
-        const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-        if (pasted.length === 6) {
-          digits.forEach((d, j) => d.value = pasted[j] || "");
-          digits[5].focus();
-          e.preventDefault();
-        }
-      });
-    });
-  }
-  initOTPInputs();
-
   function getOTPValue() {
     return [...document.querySelectorAll(".otp-digit")].map(d => d.value).join("");
   }
 
   function clearOTPInputs() {
     document.querySelectorAll(".otp-digit").forEach(d => d.value = "");
-    document.querySelector(".otp-digit")?.focus();
+    const first = document.querySelector(".otp-digit");
+    if (first) first.focus();
   }
 
-  // ── "Verify Code" button ──
-  document.getElementById("verify-done-btn")?.addEventListener("click", async () => {
+  // ── "Verify Code" button handler ──
+  async function performVerification() {
     const btn = document.getElementById("verify-done-btn");
     const statusEl = document.getElementById("verify-status-msg");
     const code = getOTPValue();
-    
+
     // Use pending email if user isn't created yet
     const email = auth.currentUser?.email || pendingSignUpData?.email;
 
-    if (code.length < 6) {
-      statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ Please enter all 6 digits.</p>`;
-      return;
-    }
+    if (code.length < 6) return; // Don't auto-submit if incomplete
 
     btn.disabled = true;
+    const originalText = btn.textContent;
     btn.textContent = "Verifying…";
     statusEl.innerHTML = "";
 
@@ -442,43 +415,82 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (res.ok && data.success) {
         statusEl.innerHTML = `<p style="color:#1a7a4a;font-weight:600;text-align:center;margin:0;">✅ Email verified! Finalizing account…</p>`;
-        
+
         let userToVerify = auth.currentUser;
 
         // ── DELAYED FIREBASE CREATION ──
         if (!userToVerify && pendingSignUpData) {
           try {
-            const cred = await createUserWithEmailAndPassword(auth, pendingSignUpData.email, pendingSignUpData.password);
-            userToVerify = cred.user;
+            const credential = await createUserWithEmailAndPassword(
+              auth,
+              pendingSignUpData.email,
+              pendingSignUpData.password
+            );
+            userToVerify = credential.user;
             if (pendingSignUpData.name) {
               await updateProfile(userToVerify, { displayName: pendingSignUpData.name });
             }
           } catch (createErr) {
+            console.error("[KAIRO Auth] Delayed creation failed:", createErr);
             statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ Account creation failed: ${createErr.message}</p>`;
             btn.disabled = false;
+            btn.textContent = originalText;
             return;
           }
         }
 
+        // Success! Hydrate profile and go home
         if (userToVerify) {
-          // Save verification status to Firestore
-          await saveUserToFirestore(userToVerify, { isVerified: true });
-          // Proceed to app
-          await onSignInSuccess(userToVerify, true, true);
-          pendingSignUpData = null; // Clear memory
+          await onSignInSuccess(userToVerify, true);
         }
       } else {
-        statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ ${data.error}</p>`;
-        clearOTPInputs();
+        statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ ${data.error || "Incorrect code."}</p>`;
         btn.disabled = false;
-        btn.textContent = "Verify Code";
+        btn.textContent = originalText;
+        clearOTPInputs();
       }
-    } catch {
-      statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ Network error. Please try again.</p>`;
+    } catch (err) {
+      console.error("[KAIRO Auth] Verify error:", err);
+      statusEl.innerHTML = `<p style="color:#a32b1a;font-weight:600;text-align:center;margin:0;">❌ Server error. Try again later.</p>`;
       btn.disabled = false;
-      btn.textContent = "Verify Code";
+      btn.textContent = originalText;
     }
-  });
+  }
+
+  // ── OTP digit auto-advance & auto-submit ──
+  function initOTPInputs() {
+    const digits = document.querySelectorAll(".otp-digit");
+    digits.forEach((input, i) => {
+      input.addEventListener("input", (e) => {
+        const val = e.target.value.replace(/\D/g, "");
+        input.value = val.slice(-1);
+
+        if (val) {
+          if (i < digits.length - 1) {
+            digits[i + 1].focus();
+          } else {
+            // Last digit entered! Auto-verify.
+            performVerification();
+          }
+        }
+      });
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Backspace" && !input.value && i > 0) digits[i - 1].focus();
+        if (e.key === "Enter") performVerification();
+      });
+      input.addEventListener("paste", (e) => {
+        const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+        if (pasted.length === 6) {
+          digits.forEach((d, j) => d.value = pasted[j] || "");
+          e.preventDefault();
+          performVerification();
+        }
+      });
+    });
+  }
+  initOTPInputs();
+
+  document.getElementById("verify-done-btn")?.addEventListener("click", performVerification);
 
   // ── "Resend" button ──
   document.getElementById("verify-resend-btn")?.addEventListener("click", async () => {
@@ -486,7 +498,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const statusEl = document.getElementById("verify-status-msg");
     const email = auth.currentUser?.email || pendingSignUpData?.email;
     btn.disabled = true;
-    btn.textContent = "Sending…";
+    btn.textContent = "Sending...";
     try {
       const res = await fetch("/api/send-otp", {
         method: "POST",
@@ -509,10 +521,25 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ── "Sign Out" link ──
+  // ── "Sign Out" link ──
   document.getElementById("verify-signout-btn")?.addEventListener("click", async () => {
     await signOut(auth);
     if (window.__kairoSetScreen) window.__kairoSetScreen("onboarding");
   });
+
+  // ── Handle URL parameters for auto-verify ──
+  const urlParams = new URLSearchParams(window.location.search);
+  const autoCode = urlParams.get("verify");
+  if (autoCode && autoCode.length === 6) {
+    const digits = document.querySelectorAll(".otp-digit");
+    digits.forEach((d, i) => d.value = autoCode[i] || "");
+    // Give a tiny delay for the screen to settle
+    setTimeout(() => {
+      performVerification();
+      // Clean up URL
+      window.history.replaceState({}, document.title, "/");
+    }, 500);
+  }
 });
 
 // ─── Email/Password Sign In ───
@@ -535,7 +562,7 @@ export async function firebaseSignIn(email, password) {
 export async function firebaseSignUp(name, email, password) {
   clearAuthErrors();
   const btn = document.querySelector("#signup-form .cta-button[type='submit']");
-  setButtonLoading(btn, true, "Preparing…");
+  setButtonLoading(btn, true, "Sending...");
   try {
     // ── DELAYED CREATION FLOW ──
     // We store info and ONLY create in Firebase AFTER OTP success
@@ -622,30 +649,42 @@ export async function firebaseSignOut() {
 // ─── Forgot Password ───
 export async function firebaseForgotPassword(email) {
   clearAuthErrors();
+  if (isFileProtocol()) {
+    showAuthError("🚫 Password reset requires the app to run on http://localhost:3001");
+    return;
+  }
   if (!email) {
     showAuthError("Enter your email address first, then tap Forgot Password.");
     return;
   }
   try {
-    await sendPasswordResetEmail(auth, email);
-    showAuthError("✅ Password reset email sent! Check your inbox.", true);
+    const res = await fetch("/api/send-reset-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || "Failed to send reset email.");
+    }
+    showAuthError("KAIRO Reset Password sent! Check your Inbox 📨", true);
   } catch (err) {
-    const msg = friendlyError(err.code);
+    const msg = friendlyError(err.code || err.message);
     if (msg) showAuthError(msg);
   }
 }
 
 // ─── Global API (called by app.js) ───
 window.__firebaseAuth = {
-  signIn:          firebaseSignIn,
-  signUp:          firebaseSignUp,
-  googleSignIn:    firebaseGoogleSignIn,
-  appleSignIn:     firebaseAppleSignIn,
-  signOut:         firebaseSignOut,
-  forgotPassword:  firebaseForgotPassword,
-  getCurrentUser:  () => auth.currentUser,
-  fetchUserData:   fetchUserFromFirestore,
-  saveUserData:    saveUserToFirestore,
-  showError:       showAuthError,
-  clearErrors:     clearAuthErrors
+  signIn: firebaseSignIn,
+  signUp: firebaseSignUp,
+  googleSignIn: firebaseGoogleSignIn,
+  appleSignIn: firebaseAppleSignIn,
+  signOut: firebaseSignOut,
+  forgotPassword: firebaseForgotPassword,
+  getCurrentUser: () => auth.currentUser,
+  fetchUserData: fetchUserFromFirestore,
+  saveUserData: saveUserToFirestore,
+  showError: showAuthError,
+  clearErrors: clearAuthErrors
 };

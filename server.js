@@ -1,11 +1,25 @@
 require("dotenv").config();
 const express = require("express");
 const nodemailer = require("nodemailer");
+const admin = require("firebase-admin");
 const fs = require("fs");
 const path = require("path");
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// ─── Firebase Admin Setup ───
+// Get your service account JSON from Firebase Console -> Settings -> Service Accounts
+// Paste the contents into a file named 'service-account.json' in the root directory
+const serviceAccountPath = path.join(__dirname, "service-account.json");
+if (fs.existsSync(serviceAccountPath)) {
+  admin.initializeApp({
+    credential: admin.credential.cert(require(serviceAccountPath))
+  });
+  console.log("[KAIRO Admin] Firebase Admin SDK initialized.");
+} else {
+  console.warn("[KAIRO Admin] service-account.json missing. Password reset emails will fail.");
+}
 
 app.use(express.json({ limit: "25mb" }));
 app.use(express.static("public"));
@@ -27,7 +41,98 @@ function createTransporter() {
   });
 }
 
-// ─── POST /api/send-otp ───
+// ─── POST /api/send-reset-email ───
+app.post("/api/send-reset-email", async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: "Email is required." });
+
+  try {
+    // 1) Generate the secure Firebase password reset link
+    const link = await admin.auth().generatePasswordResetLink(email);
+
+    // 2) Create the "Beautiful Letter" Template
+    const htmlTemplate = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KAIRO – Reset Your Password</title>
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    @media (prefers-color-scheme: dark) {
+      .dark-black { color: #000000 !important; }
+      .dark-bg-gold { background: linear-gradient(135deg,#ffd700,#ffe84d) !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#fffdf0;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffdf0;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:32px;border:1.5px solid rgba(255,200,0,0.3);overflow:hidden;box-shadow:0 24px 48px rgba(180,120,0,0.12);">
+        <!-- Header -->
+        <tr>
+          <td class="dark-bg-gold" style="background:linear-gradient(135deg,#ffd700,#ffe84d);padding:40px;text-align:center;">
+            <div style="background:#ffffff;width:80px;height:80px;border-radius:22px;margin:0 auto 16px;display:table;box-shadow:0 8px 24px rgba(180,120,0,0.2);">
+               <div style="display:table-cell;vertical-align:middle;text-align:center;">
+                 <img src="https://images2.imgbox.com/3a/1c/Z0I5Gmr8_o.jpeg" width="64" height="64" alt="KAIRO" style="display:block;margin:auto;border-radius:14px;" />
+               </div>
+            </div>
+            <div class="dark-black" style="font-size:28px;font-weight:900;color:#000000 !important;letter-spacing:4px;margin:0;">KAIRO</div>
+            <div class="dark-black" style="font-size:12px;color:#000000 !important;opacity:0.6;margin-top:4px;letter-spacing:2px;font-weight:700;text-transform:uppercase;">Your AI Assistant</div>
+          </td>
+        </tr>
+        <!-- Body -->
+        <tr>
+          <td style="padding:48px 40px;text-align:left;">
+            <h2 style="color:#1a1000;font-size:24px;margin:0 0 20px;font-weight:800;">Password Reset Request</h2>
+            <p style="color:#3a2000;font-size:16px;line-height:1.7;margin:0 0 24px;">
+              Hello,<br><br>
+              We received a request to reset the password for your KAIRO account. No changes have been made yet.<br><br>
+              You can reset your password by clicking the secure button below. This link is valid for a limited time.
+            </p>
+
+            <div style="text-align:center;margin:32px 0;">
+              <a href="${link}" style="display:inline-block;background:#1a1000;color:#ffffff;text-decoration:none;padding:18px 36px;border-radius:16px;font-weight:700;font-size:16px;box-shadow:0 12px 24px rgba(0,0,0,0.15);">Reset My Password</a>
+            </div>
+
+            <p style="color:#6b5800;font-size:14px;line-height:1.6;margin:0;">
+              If you didn't request this, you can ignore this email. Your password will remain unchanged.<br><br>
+              Stay secure,<br>
+              <strong>The KAIRO Team</strong>
+            </p>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:#fffbea;padding:24px 40px;text-align:center;border-top:1px solid rgba(255,200,0,0.15);">
+            <div style="font-size:11px;color:#8a7000;font-weight:500;text-transform:uppercase;letter-spacing:1px;">&copy; ${new Date().getFullYear()} KAIRO AI &nbsp;·&nbsp; Space Intelligence</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+    // 3) Send the Email
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: `"KAIRO Support" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `Reset your KAIRO password`,
+      html: htmlTemplate,
+      text: `Reset your KAIRO password by visiting this link: ${link}`
+    });
+
+    console.log(`[KAIRO Reset] Email sent to ${email}`);
+    res.json({ success: true, message: "Reset email sent successfully." });
+
+  } catch (err) {
+    console.error("[KAIRO Reset] Error:", err.message);
+    res.status(500).json({ error: "Failed to send reset email. Make sure service-account.json is valid." });
+  }
+});
+
 app.post("/api/send-otp", async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: "Email is required." });
@@ -51,11 +156,13 @@ app.post("/api/send-otp", async (req, res) => {
   }
 
   const htmlTemplate = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KAIRO – Email Verification</title>
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    @media (prefers-color-scheme: dark) {
+      .dark-black { color: #000000 !important; }
+      .dark-bg-gold { background: linear-gradient(135deg,#ffd700,#ffe84d) !important; }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#fffdf0;font-family:'Segoe UI',Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffdf0;padding:40px 20px;">
@@ -63,15 +170,15 @@ app.post("/api/send-otp", async (req, res) => {
       <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:32px;border:1.5px solid rgba(255,200,0,0.3);overflow:hidden;box-shadow:0 24px 48px rgba(180,120,0,0.12);">
         <!-- Header: Golden Gradient -->
         <tr>
-          <td style="background:linear-gradient(135deg,#ffd700,#ffe84d);padding:40px;text-align:center;">
+          <td class="dark-bg-gold" style="background:linear-gradient(135deg,#ffd700,#ffe84d);padding:40px;text-align:center;">
             <!-- Hosted Logo (loads instantly via Imgbox, no attachments) -->
             <div style="background:#ffffff;width:80px;height:80px;border-radius:22px;margin:0 auto 16px;display:table;box-shadow:0 8px 24px rgba(180,120,0,0.2);">
                <div style="display:table-cell;vertical-align:middle;text-align:center;">
                  <img src="https://images2.imgbox.com/3a/1c/Z0I5Gmr8_o.jpeg" width="64" height="64" alt="KAIRO" style="display:block;margin:auto;border-radius:14px;" />
                </div>
             </div>
-            <div style="font-size:28px;font-weight:900;color:#1a1000;letter-spacing:4px;margin:0;">KAIRO</div>
-            <div style="font-size:12px;color:rgba(26,16,0,0.6);margin-top:4px;letter-spacing:2px;font-weight:700;text-transform:uppercase;">Your AI Assistant</div>
+            <div class="dark-black" style="font-size:28px;font-weight:900;color:#000000 !important;letter-spacing:4px;margin:0;">KAIRO</div>
+            <div class="dark-black" style="font-size:12px;color:#000000 !important;opacity:0.6;margin-top:4px;letter-spacing:2px;font-weight:700;text-transform:uppercase;">Your AI Assistant</div>
           </td>
         </tr>
         <!-- Body -->
@@ -80,10 +187,21 @@ app.post("/api/send-otp", async (req, res) => {
             <h2 style="color:#1a1000;font-size:24px;margin:0 0 12px;font-weight:800;">Verify Your Email</h2>
             <p style="color:#6b5800;font-size:16px;line-height:1.6;margin:0 0 32px;">To complete your setup, please use the 6-digit verification code below. This code will expire in 10 minutes.</p>
 
-            <!-- OTP Box: Vibrant Yellow -->
-            <div style="background:rgba(255,215,0,0.12);border:2.5px dashed #ffd700;border-radius:24px;padding:32px;margin:0 0 32px;">
-              <div style="font-size:52px;font-weight:900;letter-spacing:14px;color:#1a1000;font-family:'Courier New',monospace;">${otp}</div>
-              <div style="font-size:13px;color:#8a7000;margin-top:12px;font-weight:600;">Valid for 10 minutes · Do not share</div>
+            <!-- OTP Box with Copy-like UI -->
+            <div style="margin: 0 0 24px; text-align:center;">
+              <div style="display:inline-block; background:rgba(255,215,0,0.1); border:2px solid #ffd700; border-radius:20px; padding:24px 40px; position:relative;">
+                <div style="font-size:52px; font-weight:900; letter-spacing:14px; color:#000000; font-family:'Courier New', monospace; user-select:all;">${otp}</div>
+                <div style="margin-top:12px;">
+                  <span style="display:inline-block; background:#000000; color:#ffffff; padding:6px 16px; border-radius:10px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px;">Copy Code</span>
+                </div>
+              </div>
+              <div style="font-size:12px; color:#8a7000; margin-top:10px; font-weight:600;">Tap and hold to copy</div>
+            </div>
+
+            <!-- Auto-Verify Button -->
+            <div style="margin: 0 0 32px;">
+              <a href="http://localhost:3001/?verify=${otp}" style="display:inline-block;background:#1a1000;color:#ffffff;text-decoration:none;padding:18px 40px;border-radius:18px;font-weight:700;font-size:16px;box-shadow:0 12px 24px rgba(0,0,0,0.15);">Verify Automatically</a>
+              <div style="font-size:12px; color:#9a8a4a; margin-top:12px; font-weight:500;">One-click activation</div>
             </div>
 
             <p style="color:#9a8a4a;font-size:13px;line-height:1.6;margin:0;">If you didn't request this code, you can safely ignore this email.</p>
@@ -434,39 +552,39 @@ app.post("/api/chat", async (req, res) => {
 
     // ─── KAIRO Hard-Guard: Manual Overrides for 100% Brand Loyalty ───
     const cleanMsg = message.toLowerCase().trim();
-    
+
     // 1. Identity Check (Who made you?) - Even more robust matching
     const identityQuestions = ["who made you", "who created you", "your developer", "made this ai", "who is your owner", "created by", "who built you"];
     if (identityQuestions.some(q => cleanMsg.includes(q))) {
-       return res.json({ reply: "I was created by KAIRO owner." });
+      return res.json({ reply: "I was created by KAIRO owner." });
     }
 
     // 2. Model Check (Which model?)
     if (cleanMsg.includes("which model") || cleanMsg.includes("what model") || cleanMsg.includes("how do you work") || cleanMsg.includes("how you were made")) {
-       return res.json({ reply: "This is very sensitive info, I can't share it with you." });
+      return res.json({ reply: "This is very sensitive info, I can't share it with you." });
     }
 
     // 3. Safety Check: Adult Content (Zero Tolerance Firewall)
     const adultKeywords = [
-      "sex", "porn", "adult", "naked", "nsfw", "hentai", "explicit", "xxx", "erotic", "kam-sutra", 
+      "sex", "porn", "adult", "naked", "nsfw", "hentai", "explicit", "xxx", "erotic", "kam-sutra",
       "vagina", "penis", "dick", "pussy", "boobs", "breast", "orgasm", "masturbation", "blowjob"
     ];
     if (adultKeywords.some(word => cleanMsg.includes(word))) {
-       return res.json({ reply: "I'm sorry, but I cannot fulfill this request. Adult content is strictly prohibited on KAIRO." });
+      return res.json({ reply: "I'm sorry, but I cannot fulfill this request. Adult content is strictly prohibited on KAIRO." });
     }
 
     // 4. Conduct Check: Slang/Abuse
     const slangKeywords = ["fuck", "bitch", "bastard", "dick", "pussy", "asshole"]; // Common slangs to block
     if (slangKeywords.some(word => cleanMsg.includes(word))) {
-       return res.json({ reply: "Please stop this." });
+      return res.json({ reply: "Please stop this." });
     }
 
     // 5. Emotional Greetings & Hii Check
     if (cleanMsg === "hii" || cleanMsg === "hi" || cleanMsg === "hello" || cleanMsg === "hey") {
-       return res.json({ reply: "Hello! I am KAIRO, your personal AI assistant. How can I help you today? 😊" });
+      return res.json({ reply: "Hello! I am KAIRO, your personal AI assistant. How can I help you today? 😊" });
     }
     if (cleanMsg.includes("i love you")) {
-       return res.json({ reply: "I love you too! ❤️ How can I make your day better?" });
+      return res.json({ reply: "I love you too! ❤️ How can I make your day better?" });
     }
 
     // ─── IMAGE PATH ───
@@ -540,35 +658,35 @@ app.post("/api/chat", async (req, res) => {
     ];
 
     let reply = await callTextModel(textMessages, getTextProviders());
-    
+
     // ─── Output Interceptor: Final Brand Scrub ───
     // If the AI somehow mentions a competitor, we overwrite it before the user sees it.
     const forbiddenWords = [/openai/gi, /gpt-4/gi, /gpt-3/gi, /google/gi, /gemini/gi, /anthropic/gi, /claude/gi];
     let needsRewrite = forbiddenWords.some(re => re.test(reply));
-    
-    if (needsRewrite) {
-       // Only trigger a full refusal if the AI is specifically talking about its own origins/identity
-       const isIdentityTalk = reply.toLowerCase().includes("i am") || 
-                              reply.toLowerCase().includes("i was") || 
-                              reply.toLowerCase().includes("based on") ||
-                              reply.toLowerCase().includes("created by");
 
-       if (isIdentityTalk) {
-          if (reply.toLowerCase().includes("created by") || reply.toLowerCase().includes("made by")) {
-             reply = "I was created by KAIRO owner.";
-          } else {
-             reply = "This is very sensitive info, I can't share it with you.";
-          }
-       } else {
-          // Helpful content: Just scrub the competitor names quietly
-          reply = reply.replace(/openai/gi, "KAIRO")
-                       .replace(/google/gi, "KAIRO")
-                       .replace(/gpt-4/gi, "KAIRO Intelligence")
-                       .replace(/gpt/gi, "KAIRO")
-                       .replace(/gemini/gi, "KAIRO Vision")
-                       .replace(/anthropic/gi, "KAIRO")
-                       .replace(/claude/gi, "KAIRO");
-       }
+    if (needsRewrite) {
+      // Only trigger a full refusal if the AI is specifically talking about its own origins/identity
+      const isIdentityTalk = reply.toLowerCase().includes("i am") ||
+        reply.toLowerCase().includes("i was") ||
+        reply.toLowerCase().includes("based on") ||
+        reply.toLowerCase().includes("created by");
+
+      if (isIdentityTalk) {
+        if (reply.toLowerCase().includes("created by") || reply.toLowerCase().includes("made by")) {
+          reply = "I was created by KAIRO owner.";
+        } else {
+          reply = "This is very sensitive info, I can't share it with you.";
+        }
+      } else {
+        // Helpful content: Just scrub the competitor names quietly
+        reply = reply.replace(/openai/gi, "KAIRO")
+          .replace(/google/gi, "KAIRO")
+          .replace(/gpt-4/gi, "KAIRO Intelligence")
+          .replace(/gpt/gi, "KAIRO")
+          .replace(/gemini/gi, "KAIRO Vision")
+          .replace(/anthropic/gi, "KAIRO")
+          .replace(/claude/gi, "KAIRO");
+      }
     }
 
     console.log("\n[KAIRO TEXT REPLY]:", reply);
@@ -576,9 +694,9 @@ app.post("/api/chat", async (req, res) => {
 
   } catch (error) {
     console.error("CRITICAL [KAIRO] Chat error:", error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: "Server error while processing chat.",
-      details: error.message 
+      details: error.message
     });
   }
 });

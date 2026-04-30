@@ -1,90 +1,13 @@
+
+> chat-bot@1.0.0 dev
+> node server.js
+
+[KAIRO Admin] Firebase Admin SDK initialized.
 KAIRO running at http://localhost:3001
-
-========== [NEW CHAT MESSAGE] ==========
-User Message: what is dbms?
-Requested Language: en
-Has Image: false
-History Length: 2
-========================================
-[KAIRO Text] Trying model: openai/gpt-oss-120b:free
-[KAIRO Text] Model openai/gpt-oss-120b:free failed: Provider returned error
-CRITICAL [KAIRO] Chat error: Error: Provider returned error
-    at callTextModel (/Users/ankitkarmakar/Desktop/KAIRO AI 2.0/server.js:405:9)
-    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async /Users/ankitkarmakar/Desktop/KAIRO AI 2.0/server.js:542:17
-
-========== [NEW CHAT MESSAGE] ==========
-User Message: what is dbms?
-Requested Language: en
-Has Image: false
-History Length: 4
-========================================
-[KAIRO Text] Trying model: openai/gpt-oss-120b:free
-[KAIRO Text] Model openai/gpt-oss-120b:free failed: Provider returned error
-CRITICAL [KAIRO] Chat error: Error: Provider returned error
-    at callTextModel (/Users/ankitkarmakar/Desktop/KAIRO AI 2.0/server.js:405:9)
-    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
-    at async /Users/ankitkarmakar/Desktop/KAIRO AI 2.0/server.js:542:17
-
-========== [NEW CHAT MESSAGE] ==========
-User Message: what is dbms?
-Requested Language: en
-Has Image: false
-History Length: 6
-========================================
-[KAIRO Text] Trying model: openai/gpt-oss-120b:free
-[KAIRO Text] Success with model: openai/gpt-oss-120b:free
-
-[KAIRO TEXT REPLY]: A **DBMS (Database Management System)** is software that lets you create, store, retrieve, modify, and manage data in a structured way. Think of it as the “engine” that powers databases, handling how data is organized, accessed, and protected.
-
-### Core Functions
-| Function | What It Does |
-|----------|--------------|
-| **Data Definition** | Lets you define the structure of the data (tables, columns, data types) using a language like SQL’s `CREATE TABLE`. |
-| **Data Manipulation** | Enables inserting, updating, deleting, and querying data (`INSERT`, `UPDATE`, `DELETE`, `SELECT`). |
-| **Transaction Management** | Groups a set of operations into a single unit that either **commits** (all succeed) or **rolls back** (all undone) to keep data consistent. |
-| **Concurrency Control** | Manages simultaneous access by multiple users, preventing conflicts (e.g., locking, multiversion concurrency control). |
-| **Security & Authorization** | Controls who can see or modify data through user accounts, roles, and permissions. |
-| **Backup & Recovery** | Provides tools to back up data and restore it after failures or corruption. |
-| **Integrity Enforcement** | Enforces rules (primary keys, foreign keys, constraints) to keep data accurate and reliable. |
-
-### Types of DBMS
-| Type | Typical Use Cases | Example Products |
-|------|-------------------|------------------|
-| **Relational DBMS (RDBMS)** | Structured data with clear relationships; transactional systems. | MySQL, PostgreSQL, Oracle, Microsoft SQL Server |
-| **NoSQL DBMS** | Large-scale, flexible schemas; big data, real‑time web apps. | MongoDB (document), Cassandra (wide‑column), Redis (key‑value), Neo4j (graph) |
-| **Object‑Oriented DBMS** | Stores objects directly, used in some CAD/CAM or scientific apps. | db4o, ObjectDB |
-| **NewSQL** | Combines relational model with NoSQL‑style scalability. | CockroachDB, KAIRO Spanner |
-
-### Why Use a DBMS?
-- **Efficiency:** Optimized indexing and query planning make data retrieval fast.
-- **Data Integrity:** Built‑in constraints keep the data clean.
-- **Scalability:** Handles growing data volumes and concurrent users.
-- **Security:** Centralized control over who can do what.
-- **Abstraction:** Users interact with data via high‑level queries instead of low‑level file handling.
-
-In short, a DBMS is the backbone that lets applications and users work with data reliably, securely, and efficiently.
-
-========== [NEW CHAT MESSAGE] ==========
-User Message: tell me amitavbachhan top 10 movie name
-Requested Language: en
-Has Image: false
-History Length: 8
-========================================
-[KAIRO Text] Trying model: openai/gpt-oss-120b:free
-[KAIRO Text] Success with model: openai/gpt-oss-120b:free
-
-[KAIRO TEXT REPLY]: Here are ten of Amitabh Bachchan’s most celebrated and iconic films (in no particular order). They span his “angry young man” era, his dramatic turn‑around roles, and some later classics:
-
-1. **Sholay** (1975) – The legendary “Jai Veeru” buddy‑action saga.  
-2. **Deewar** (1975) – Powerful drama with the famous line “Mere baap ka naam …”.  
-3. **Zanjeer** (1973) – The film that launched him as the “angry young man”.  
-4. **Don** (1978) – Stylish crime thriller; later remade with Shah Rukh Khan.  
-5. **Piku** (2015) – Warm, modern comedy‑drama where he plays a quirky, stubborn father.  
-6. **Black** (2005) – Deeply moving drama opposite Rani Mukerji as a teacher to a deaf‑blind girl.  
-7. **Paa** (2009) – Plays a father to a child with progeria (played by his real‑life son Abhishek).  
-8. **Silsila** (1981) – Classic romantic drama directed by Yash Chopra.  
-9. **Coolie** (1983) – Famous for the “Meri maa ka bhoot …!” dialogue and his on‑set injury.  
-10. **The Great Gambler** (1979) – A high‑octane spy‑action film with memorable songs.
-
-These titles showcase the range of genres and eras where Amitabh Bachchan left an indelible mark on Indian cinema. Enjoy watching!
+[KAIRO OTP] Code sent to ankitkarmakar200506@gmail.com
+[KAIRO OTP] Email verified: ankitkarmakar200506@gmail.com
+[KAIRO OTP] Code sent to ankitkarmakar200506@gmail.com
+[KAIRO OTP] Code sent to ankitkarmakar200506@gmail.com
+[KAIRO OTP] Code sent to ankitkarmakar200506@gmail.com
+[KAIRO OTP] Code sent to coderparveen@gmail.com
+[KAIRO OTP] Email verified: coderparveen@gmail.com
