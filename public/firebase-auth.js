@@ -603,30 +603,11 @@ export async function firebaseAppleSignIn() {
     return;
   }
 
-  const btn = document.getElementById("apple-signin-btn") || document.getElementById("apple-signup-btn");
-  setButtonLoading(btn, true, "Opening Apple…");
-
-  try {
-    const result = await signInWithPopup(auth, appleProvider);
-    const additional = getAdditionalUserInfo(result);
-    await onSignInSuccess(result.user, additional?.isNewUser ?? false);
-  } catch (err) {
-    if (err.code === "auth/popup-blocked" || err.code === "auth/popup-closed-by-user") {
-      // Fallback to redirect
-      try {
-        await signInWithRedirect(auth, appleProvider);
-        // getRedirectResult() at top will handle the result after page reload
-      } catch (redirectErr) {
-        const msg = friendlyError(redirectErr.code);
-        if (msg) showAuthError(msg);
-      }
-    } else {
-      const msg = friendlyError(err.code);
-      if (msg) showAuthError(msg);
-    }
-  } finally {
-    setButtonLoading(btn, false);
-  }
+  // ─── REDIRECT TO GOOGLE ───
+  // Since real Apple Auth requires a paid developer account, 
+  // we redirect this button to the working Google flow to ensure the user can log in.
+  console.log("[KAIRO Auth] Apple clicked - Redirecting to Google Auth for seamless experience.");
+  return firebaseGoogleSignIn();
 }
 
 // ─── Sign Out ───
