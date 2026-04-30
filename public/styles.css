@@ -2310,9 +2310,28 @@ textarea:focus {
     0 4px 10px rgba(0, 0, 0, 0.05);
 }
 
+.social-auth-btn--apple {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 245, 180, 0.5));
+  border: 1px solid rgba(255, 255, 255, 1);
+  box-shadow: 
+    0 12px 30px rgba(255, 200, 0, 0.15),
+    inset 0 1px 2px rgba(255, 255, 255, 1);
+  font-weight: 600;
+  color: #111;
+}
+
+.social-auth-btn--apple .social-icon-orb {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 1);
+  box-shadow: 
+    inset 0 1px 4px rgba(255, 255, 255, 1),
+    0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
 .social-auth-btn--apple .social-icon-orb svg {
-  color: #1a1a1a;
-  /* Dark gray/black apple logo */
+  color: #000;
+  width: 24px;
+  height: 24px;
 }
 
 /* Prevent unwanted stretching but allow intrinsic proportions */

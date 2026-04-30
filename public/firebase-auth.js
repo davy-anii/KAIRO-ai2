@@ -664,5 +664,7 @@ window.__firebaseAuth = {
   forgotPassword:  firebaseForgotPassword,
   getCurrentUser:  () => auth.currentUser,
   fetchUserData:   fetchUserFromFirestore,
-  saveUserData:    saveUserToFirestore
+  saveUserData:    saveUserToFirestore,
+  showError:       showAuthError,
+  clearErrors:     clearAuthErrors
 };

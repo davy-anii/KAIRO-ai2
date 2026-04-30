@@ -1011,6 +1011,17 @@ function submitAuth(event) {
   }
 
   if (formId === "signup-form") {
+    const confirmPassword = form.querySelector("[name='confirmPassword']")?.value?.trim() || "";
+    
+    if (password !== confirmPassword) {
+      if (fb && fb.showError) {
+        fb.showError("❌ Passwords do not match.");
+      } else {
+        alert("Passwords do not match.");
+      }
+      return;
+    }
+    
     fb.signUp(name, email, password);
   } else {
     fb.signIn(email, password);
