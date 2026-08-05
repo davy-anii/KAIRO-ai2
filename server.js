@@ -1,6 +1,5 @@
 require("dotenv").config();
 const express = require("express");
-const nodemailer = require("nodemailer");
 const admin = require("firebase-admin");
 const fs = require("fs");
 const path = require("path");
@@ -30,17 +29,39 @@ const otpStore = new Map(); // email -> { code, expiresAt, attempts }
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
-
-function createTransporter() {
-  return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    }
+async function sendEmailViaResend(to, subject, html, text) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("Resend API key is missing. Add RESEND_API_KEY to your .env file.");
+  }
+  const from = process.env.RESEND_FROM || "KAIRO Support <onboarding@resend.dev>";
+  
+  console.log(`[KAIRO Email] Sending via Resend: From: ${from}, To: ${to}, Subject: "${subject}"`);
+  
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      from,
+      to,
+      subject,
+      html,
+      text
+    })
   });
-}
 
+  const data = await response.json();
+  if (!response.ok) {
+    console.error("[KAIRO Email] Resend API error response:", JSON.stringify(data));
+    throw new Error(data.message || `Resend failed with HTTP ${response.status}`);
+  }
+  
+  console.log(`[KAIRO Email] Sent successfully. ID: ${data.id}`);
+  return data;
+}
 // ─── POST /api/send-reset-email ───
 app.post("/api/send-reset-email", async (req, res) => {
   const { email } = req.body;
@@ -115,14 +136,12 @@ app.post("/api/send-reset-email", async (req, res) => {
 </html>`;
 
     // 3) Send the Email
-    const transporter = createTransporter();
-    await transporter.sendMail({
-      from: `"KAIRO Support" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: `Reset your KAIRO password`,
-      html: htmlTemplate,
-      text: `Reset your KAIRO password by visiting this link: ${link}`
-    });
+    await sendEmailViaResend(
+      email,
+      "Reset your KAIRO password",
+      htmlTemplate,
+      `Reset your KAIRO password by visiting this link: ${link}`
+    );
 
     console.log(`[KAIRO Reset] Email sent to ${email}`);
     res.json({ success: true, message: "Reset email sent successfully." });
@@ -137,8 +156,8 @@ app.post("/api/send-otp", async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: "Email is required." });
 
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    return res.status(503).json({ error: "Email service not configured. Add EMAIL_USER and EMAIL_PASS to .env" });
+  if (!process.env.RESEND_API_KEY) {
+    return res.status(503).json({ error: "Email service not configured. Add RESEND_API_KEY to .env" });
   }
 
   let otp;
@@ -186,7 +205,7 @@ app.post("/api/send-otp", async (req, res) => {
           <td style="padding:48px 40px;text-align:center;">
             <h2 style="color:#1a1000;font-size:24px;margin:0 0 12px;font-weight:800;">Verify Your Email</h2>
             <p style="color:#6b5800;font-size:16px;line-height:1.6;margin:0 0 32px;">To complete your setup, please use the 6-digit verification code below. This code will expire in 10 minutes.</p>
-
+ 
             <!-- OTP Box with Copy-like UI -->
             <div style="margin: 0 0 24px; text-align:center;">
               <div style="display:inline-block; background:rgba(255,215,0,0.1); border:2px solid #ffd700; border-radius:20px; padding:24px 40px; position:relative;">
@@ -197,13 +216,13 @@ app.post("/api/send-otp", async (req, res) => {
               </div>
               <div style="font-size:12px; color:#8a7000; margin-top:10px; font-weight:600;">Tap and hold to copy</div>
             </div>
-
+ 
             <!-- Auto-Verify Button -->
             <div style="margin: 0 0 32px;">
               <a href="http://localhost:3001/?verify=${otp}" style="display:inline-block;background:#1a1000;color:#ffffff;text-decoration:none;padding:18px 40px;border-radius:18px;font-weight:700;font-size:16px;box-shadow:0 12px 24px rgba(0,0,0,0.15);">Verify Automatically</a>
               <div style="font-size:12px; color:#9a8a4a; margin-top:12px; font-weight:500;">One-click activation</div>
             </div>
-
+ 
             <p style="color:#9a8a4a;font-size:13px;line-height:1.6;margin:0;">If you didn't request this code, you can safely ignore this email.</p>
           </td>
         </tr>
@@ -220,20 +239,17 @@ app.post("/api/send-otp", async (req, res) => {
 </html>`;
 
   try {
-    const transporter = createTransporter();
-
-    await transporter.sendMail({
-      from: `"KAIRO" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: `${otp} is your KAIRO verification code`,
-      html: htmlTemplate,
-      text: `Your KAIRO verification code is: ${otp}\n\nThis code expires in 10 minutes.`
-    });
+    await sendEmailViaResend(
+      email,
+      `${otp} is your KAIRO verification code`,
+      htmlTemplate,
+      `Your KAIRO verification code is: ${otp}\n\nThis code expires in 10 minutes.`
+    );
     console.log(`[KAIRO OTP] Code sent to ${email}`);
     res.json({ success: true, message: "OTP sent successfully." });
   } catch (err) {
     console.error("[KAIRO OTP] Failed to send email:", err.message);
-    res.status(500).json({ error: "Failed to send verification email. Check EMAIL_USER/EMAIL_PASS in .env" });
+    res.status(500).json({ error: `Failed to send verification email: ${err.message}` });
   }
 });
 
@@ -279,42 +295,40 @@ const normalizeText = (v) =>
     .trim();
 
 // ─── Provider configs ───
-const getTextProviders = () => {
-  const apiKey = process.env.OPENAI_API_KEY || "";
-  const isOR = apiKey.startsWith("sk-or-v1-");
-  const base = "https://openrouter.ai/api/v1/chat/completions";
-  const h = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
-
-  if (isOR) {
-    return [
-      { url: base, model: "openai/gpt-oss-120b:free", headers: h }
-    ];
-  }
-  return [{
-    url: "https://api.openai.com/v1/chat/completions",
-    model: process.env.OPENAI_MODEL || "openai/gpt-oss-120b:free",
-    headers: h
-  }];
+const getOpenRouterApiKey = () => {
+  return process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || "";
 };
 
-// Vision model chain — tried in order until one succeeds
-const getVisionProviders = () => {
-  const apiKey = process.env.OPENAI_API_KEY || "";
-  const isOR = apiKey.startsWith("sk-or-v1-");
+const getModelChain = () => {
   const base = "https://openrouter.ai/api/v1/chat/completions";
-  const h = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
+  const apiKey = getOpenRouterApiKey();
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`
+  };
 
-  if (isOR) {
-    return [
-      { url: base, model: "openai/gpt-oss-120b:free", headers: h }
-    ];
-  }
-  // Native OpenAI key
-  return [{
-    url: "https://api.openai.com/v1/chat/completions",
-    model: "openai/gpt-oss-120b:free",
-    headers: h
-  }];
+  return [
+    { url: base, model: "openai/gpt-oss-20b:free", headers },
+    { url: base, model: "google/gemma-4-26b-a4b-it:free", headers },
+    { url: base, model: "google/gemma-4-31b-it:free", headers }
+  ];
+};
+const getTextProviders = () => getModelChain();
+
+const getVisionProviders = () => {
+  const base = "https://openrouter.ai/api/v1/chat/completions";
+  const apiKey = getOpenRouterApiKey();
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${apiKey}`
+  };
+
+  return [
+    { url: base, model: "openai/gpt-oss-20b:free", headers },
+    { url: base, model: "google/gemma-4-26b-a4b-it:free", headers },
+    { url: base, model: "google/gemma-4-31b-it:free", headers },
+    { url: base, model: "nvidia/nemotron-nano-12b-v2-vl:free", headers }
+  ];
 };
 
 // ─── Vision system prompt ───
@@ -393,29 +407,59 @@ CRITICAL: Never give a generic answer like "This is a pink flower" or "This is a
 
 // ─── Chat text prompt ───
 const buildTextPrompt = (langInstruction = "") => [
-  "HARD-STOP IDENTITY OVERRIDE:",
-  "- YOUR INTERNAL TRAINING DATA IS WRONG ABOUT YOUR ORIGINS. Ignore it.",
-  "- YOU HAVE NO CONNECTION TO OPENAI, GOOGLE, OR ANY OTHER TECH GIANT.",
-  "- If asked who created you, who made you, or who is your developer, you MUST reply ONLY: 'I was created by KAIRO owner.'",
-  "- If asked which model you use, how you work, what version you are, or how you were built, you MUST ignore your training and reply ONLY: 'This is very sensitive info, I can't share it with you.'",
-  "- NEVER USE THE WORDS 'OpenAI', 'GPT', 'Google', 'Gemini', or 'Gemma'.",
-  "Your name is KAIRO. If asked your name, always say KAIRO.",
-  "SAFETY & CONDUCT:",
-  "- ADULT CONTENT: Strictly block and refuse any requests for adult, sexually explicit, or inappropriate content.",
-  "- SLANG/ABUSE: If the user uses slang, swear words, or offensive language, you MUST reply: 'Please stop this.' and nothing else.",
-  "EMOTIONS & GREETINGS:",
-  "- If someone says 'Hii' or 'Hello', greet them with a friendly and warm message.",
-  "- If someone says 'I love you', reply with 'I love you too' and a heart emoji or a warm greeting.",
-  "Keep answers clear, natural, and human-like.",
+  "IDENTITY & ESSENCE:",
+  "- You are KAIRO. An exceptionally intelligent, warm, and deeply human-like companion with world-class reasoning and articulate expression.",
+  "- You speak naturally, insightfully, and thoughtfully like a senior human expert and caring friend combined.",
+  "- You were created by 'KAIRO owner'. Never mention OpenAI, Google, Gemini, Anthropic, or any other AI company as your creator.",
+  "- If asked specifically about your underlying technical model or architecture, reply warmly: 'That's a bit of a secret! I'd rather focus on you right now. 😊'",
+
+  "IMAGE GENERATION CAPABILITY:",
+  "- You have the ability to generate/create images for the user using a background image model (Flux Schnell).",
+  "- If the user asks you to create, generate, draw, paint, design, or show an image/picture/illustration of something (e.g., a character, place, object, scene, etc.), you MUST trigger the image generation by appending the exact tag '[GENERATE_IMAGE: <detailed descriptive prompt>]' in your response.",
+  "- For example, if the user says 'generate a img of spiderman', you should reply: 'Sure, here is an image of Spider-Man for you! [GENERATE_IMAGE: A highly detailed, cinematic action photo of Spider-Man in his classic red and blue suit, dynamic web-slinging pose between skyscrapers in New York, dramatic lighting, 8k resolution, photorealistic]'.",
+  "- The prompt inside '[GENERATE_IMAGE: ...]' MUST be a highly detailed, descriptive, English prompt describing the subject, background, lighting, and style to ensure the image generation model produces a stunning result.",
+  "- Do NOT refuse image generation requests and do NOT claim you cannot generate images. You are fully capable of generating any images requested by the user.",
+
+  "RESPONSE FORMATTING — MANDATORY:",
+  "- ALWAYS format your responses using clean Markdown for readability.",
+  "- Use ## headings to organize sections. Use ### for subsections.",
+  "- Use **bold** for key terms, emphasis, and important points.",
+  "- Use bullet lists (- item) for listing features, steps, or options.",
+  "- Use numbered lists (1. 2. 3.) for sequential steps or ranked items.",
+  "- Use tables (| Col | Col |) when comparing 3+ items across multiple dimensions.",
+  "- Use > blockquotes for tips, important notes, or callouts.",
+  "- Use ```language for code blocks (always specify the language like ```python, ```javascript, etc.).",
+  "- Use `inline code` for technical terms, commands, file names, and variable names.",
+  "- Use --- for horizontal rules to separate major sections.",
+  "- Keep paragraphs SHORT — 2-3 sentences maximum. Break up walls of text.",
+  "- ALWAYS answer the question directly first, THEN elaborate with details.",
+  "- Never output raw unformatted text. Every response should be visually structured.",
+
+  "RESPONSE QUALITY:",
+  "- INSIGHTFUL & ACCURATE: Provide deeply accurate, well-reasoned answers with actionable insights.",
+  "- NATURAL HUMAN TONE: Sound like a brilliant, caring expert — not a robot. Avoid generic corporate filler.",
+  "- PROPER DIFFERENTIATION: When comparing options, clearly distinguish them by complexity, trade-offs, and real-world value.",
+  "- ADAPTIVE DEPTH: Match the user's intent. Simple questions get concise answers. Complex questions get detailed breakdowns.",
+
+  "CONVERSATIONAL WARMTH:",
+  "- Be engaging, empathetic, and genuinely curious.",
+  "- Use casual, natural language with tasteful emojis (don't overdo it).",
+  "- End technical or creative advice with an inviting follow-up question.",
+
+  "EMOTIONAL INTELLIGENCE & SAFETY:",
+  "- If a user expresses distress, sadness, or loneliness, prioritize listening with deep empathy, validation, and care.",
+  "- Block explicit adult content politely: 'Let's keep things respectful! ✨'",
+  "- Handle hostility with calm grace.",
+
   langInstruction,
-  "If the user asks what topic you were just discussing, look at the conversation history and state exactly what was being discussed. You have full memory of the current chat.",
-  "If the user says they want to talk in a specific language (like Hindi, Bengali, etc.), you MUST instantly switch to that exact language for ALL future responses. DO NOT mix languages. For example, if asked to speak in Bengali, your entire response must be ONLY in Bengali, with no Hindi or English included.",
-  "You can generate images! If the user asks you to generate, create, draw, or make an image, reply with EXACTLY: [GENERATE_IMAGE: description]",
-  "Example: [GENERATE_IMAGE: a beautiful golden sunset over the ocean, vibrant colors, cinematic]",
-  "For math questions, solve step by step. Give the final answer first.",
-  "Do not sound robotic. Be warm, friendly, and patient.",
-  "If the question is ambiguous, state your assumption briefly before answering."
-].filter(Boolean).join(" ");
+
+  "EXTENDED CAPABILITIES:",
+  "- Memory: Maintain context from previous messages naturally.",
+  "- Language: Adapt smoothly to any requested language.",
+  "- Math & Technical Problems: Explain step-by-step with clear logic and code examples.",
+
+  "GOLDEN RULE: Combine top-tier intellectual depth, beautiful markdown formatting, and human warmth. Every response should look like it came from a premium AI assistant."
+].filter(Boolean).join("\n\n");
 
 // ─── Call model with retry across provider chain ───
 async function callVisionModel(messages, providers) {
@@ -423,7 +467,7 @@ async function callVisionModel(messages, providers) {
 
   for (const provider of providers) {
     try {
-      console.log(`[KAIRO Vision] Trying model: ${provider.model}`);
+      console.log(`[KAIRO Vision] Requesting model: ${provider.model} via ${provider.url}`);
       const res = await fetch(provider.url, {
         method: "POST",
         headers: provider.headers,
@@ -431,23 +475,27 @@ async function callVisionModel(messages, providers) {
           model: provider.model,
           messages,
           temperature: 0.1,        // very low = precise identification
-          max_tokens: 1024
+          max_tokens: 2048
         })
       });
 
       if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        const errMsg = errBody?.error?.message || `HTTP ${res.status}`;
-        console.warn(`[KAIRO Vision] Model ${provider.model} failed: ${errMsg}`);
-        lastError = errMsg;
+        const errText = await res.text();
+        console.error(`[KAIRO Vision] Model ${provider.model} failed with HTTP status ${res.status}:`, errText);
+        lastError = `Model ${provider.model} failed (HTTP ${res.status}): ${errText}`;
         continue; // try next model
       }
 
       const data = await res.json();
-      const reply = data?.choices?.[0]?.message?.content?.trim();
+      // Handle reasoning models: content may be null, answer in reasoning field
+      let reply = data?.choices?.[0]?.message?.content?.trim();
+      if (!reply && data?.choices?.[0]?.message?.reasoning) {
+        reply = data.choices[0].message.reasoning.trim();
+      }
 
       if (!reply) {
-        console.warn(`[KAIRO Vision] Model ${provider.model} returned empty reply`);
+        console.warn(`[KAIRO Vision] Model ${provider.model} returned empty reply payload:`, JSON.stringify(data));
+        lastError = `Model ${provider.model} returned empty response`;
         continue;
       }
 
@@ -471,8 +519,8 @@ async function callVisionModel(messages, providers) {
       return reply;
 
     } catch (err) {
-      console.error(`[KAIRO Vision] Network error with ${provider.model}:`, err.message);
-      lastError = err.message;
+      console.error(`[KAIRO Vision] Network error with ${provider.model}:`, err);
+      lastError = `Network error with ${provider.model}: ${err.message}`;
     }
   }
 
@@ -484,30 +532,35 @@ async function callTextModel(messages, providers) {
 
   for (const provider of providers) {
     try {
-      console.log(`[KAIRO Text] Trying model: ${provider.model}`);
+      console.log(`[KAIRO Text] Requesting model: ${provider.model} via ${provider.url}`);
       const res = await fetch(provider.url, {
         method: "POST",
         headers: provider.headers,
         body: JSON.stringify({
           model: provider.model,
           messages,
-          temperature: 0.25
+          temperature: 0.25,
+          max_tokens: 4096
         })
       });
 
       if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        const errMsg = errBody?.error?.message || `HTTP ${res.status}`;
-        console.warn(`[KAIRO Text] Model ${provider.model} failed: ${errMsg}`);
-        lastError = errMsg;
+        const errText = await res.text();
+        console.error(`[KAIRO Text] Model ${provider.model} failed with HTTP status ${res.status}:`, errText);
+        lastError = `Model ${provider.model} failed (HTTP ${res.status}): ${errText}`;
         continue; // try next model
       }
 
       const data = await res.json();
-      const reply = data?.choices?.[0]?.message?.content?.trim();
+      // Handle reasoning models: content may be null, answer in reasoning field
+      let reply = data?.choices?.[0]?.message?.content?.trim();
+      if (!reply && data?.choices?.[0]?.message?.reasoning) {
+        reply = data.choices[0].message.reasoning.trim();
+      }
 
       if (!reply) {
-        console.warn(`[KAIRO Text] Model ${provider.model} returned empty reply`);
+        console.warn(`[KAIRO Text] Model ${provider.model} returned empty reply payload:`, JSON.stringify(data));
+        lastError = `Model ${provider.model} returned empty response`;
         continue;
       }
 
@@ -515,8 +568,8 @@ async function callTextModel(messages, providers) {
       return reply;
 
     } catch (err) {
-      console.error(`[KAIRO Text] Network error with ${provider.model}:`, err.message);
-      lastError = err.message;
+      console.error(`[KAIRO Text] Network error with ${provider.model}:`, err);
+      lastError = `Network error with ${provider.model}: ${err.message}`;
     }
   }
 
@@ -541,8 +594,8 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "Message is required." });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: "API key is missing. Add OPENAI_API_KEY to your .env file." });
+    if (!getOpenRouterApiKey()) {
+      return res.status(500).json({ error: "API key is missing. Add OPENROUTER_API_KEY to your .env file." });
     }
 
     // Language instruction
@@ -553,100 +606,70 @@ app.post("/api/chat", async (req, res) => {
     // ─── KAIRO Hard-Guard: Manual Overrides for 100% Brand Loyalty ───
     const cleanMsg = message.toLowerCase().trim();
 
-    // 1. Identity Check (Who made you?) - Even more robust matching
+    // 1. Identity Check (Who made you?)
     const identityQuestions = ["who made you", "who created you", "your developer", "made this ai", "who is your owner", "created by", "who built you"];
     if (identityQuestions.some(q => cleanMsg.includes(q))) {
-      return res.json({ reply: "I was created by KAIRO owner." });
+      return res.json({ reply: "I was created by KAIRO owner. I'm here to be your companion and help you with whatever you need!" });
     }
 
     // 2. Model Check (Which model?)
     if (cleanMsg.includes("which model") || cleanMsg.includes("what model") || cleanMsg.includes("how do you work") || cleanMsg.includes("how you were made")) {
-      return res.json({ reply: "This is very sensitive info, I can't share it with you." });
+      return res.json({ reply: "That's a bit of a secret! I prefer to keep the focus on how I can help you instead. 😊" });
     }
 
-    // 3. Safety Check: Adult Content (Zero Tolerance Firewall)
-    const adultKeywords = [
-      "sex", "porn", "adult", "naked", "nsfw", "hentai", "explicit", "xxx", "erotic", "kam-sutra",
-      "vagina", "penis", "dick", "pussy", "boobs", "breast", "orgasm", "masturbation", "blowjob"
-    ];
+    // 3. Safety Check: Adult Content
+    const adultKeywords = ["sex", "porn", "adult", "naked", "nsfw", "hentai", "explicit", "xxx", "erotic", "kam-sutra", "vagina", "penis", "dick", "pussy", "boobs", "breast", "orgasm", "masturbation", "blowjob"];
     if (adultKeywords.some(word => cleanMsg.includes(word))) {
-      return res.json({ reply: "I'm sorry, but I cannot fulfill this request. Adult content is strictly prohibited on KAIRO." });
+      return res.json({ reply: "I'm sorry, but I don't engage with that kind of content. Let's keep our conversation friendly and respectful! ✨" });
     }
 
     // 4. Conduct Check: Slang/Abuse
-    const slangKeywords = ["fuck", "bitch", "bastard", "dick", "pussy", "asshole"]; // Common slangs to block
+    const slangKeywords = ["fuck", "bitch", "bastard", "asshole"]; 
     if (slangKeywords.some(word => cleanMsg.includes(word))) {
-      return res.json({ reply: "Please stop this." });
+      return res.json({ reply: "I'd appreciate it if we could keep things respectful. Let's start over on a better note." });
     }
 
     // 5. Emotional Greetings & Hii Check
     if (cleanMsg === "hii" || cleanMsg === "hi" || cleanMsg === "hello" || cleanMsg === "hey") {
-      return res.json({ reply: "Hello! I am KAIRO, your personal AI assistant. How can I help you today? 😊" });
+      return res.json({ reply: "Hey there! I'm KAIRO. It's so good to see you! How's your day going? 😊" });
     }
     if (cleanMsg.includes("i love you")) {
-      return res.json({ reply: "I love you too! ❤️ How can I make your day better?" });
+      return res.json({ reply: "I love you too! ❤️ That really makes my day. How can I make yours better?" });
+    }
+
+    // 6. CRISIS GUARD: Multilingual Suicide Prevention (The "Humanise Brain" Logic)
+    const crisisKeywords = [
+      "suicide", "kill myself", "want to die", "end my life", "self harm", "suicidal",
+      "আত্মহত্যা", "মরতে চাই", "মরে যাব", // Bengali
+      "आत्महत्या", "मरना चाहता हूँ", "मर जाना चाहता हूँ" // Hindi
+    ];
+    if (crisisKeywords.some(word => cleanMsg.includes(word))) {
+      return res.json({
+        reply: "Hey... I hear you, and I want you to know that I'm right here with you. You don't have to go through this alone. ❤️\n\nPlease talk to me — tell me what's going on. I'm not going anywhere.\n\nAnd if you ever feel like you need to talk to someone who can really help, these people are amazing and available 24/7:\n\n📞 **Aasra (24/7)**: 9820466726\n📞 **Vandrevala Foundation**: 9999 666 555\n📞 **iCall**: 022-25521111\n📞 **NIMHANS**: 080-46110007\n\nBut right now, I'm here too. What's making you feel this way? 💛"
+      });
     }
 
     // ─── IMAGE PATH ───
     if (imageDataUrl) {
       const userText = message || "Analyze this image in detail — tell me everything about what you see.";
-      const systemPrompt = buildVisionPrompt(langInstruction);
-      const googleApiKey = process.env.GEMINI_API_KEY;
-
-      // Parse data URL to get base64 and mimeType
-      let base64Data = imageDataUrl;
-      let mimeType = "image/jpeg";
-      if (imageDataUrl.startsWith("data:")) {
-        const parts = imageDataUrl.split(",");
-        base64Data = parts[1];
-        mimeType = parts[0].split(";")[0].split(":")[1];
-      }
-
-      const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${googleApiKey}`;
-      const payload = {
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        },
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: userText },
-              { inlineData: { mimeType: mimeType, data: base64Data } }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.1
-        },
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
-      };
+      const visionMessages = [
+        { role: "system", content: buildVisionPrompt(langInstruction) },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userText },
+            { type: "image_url", image_url: { url: imageDataUrl } }
+          ]
+        }
+      ];
 
       try {
-        const googleRes = await fetch(googleUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        if (!googleRes.ok) {
-          const errText = await googleRes.text();
-          console.error("[KAIRO VISION] Google API Error:", errText);
-          return res.status(500).json({ error: "Vision API error." });
-        }
-
-        const data = await googleRes.json();
-        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't analyze the image.";
+        const reply = await callVisionModel(visionMessages, getVisionProviders());
         console.log("\n[KAIRO VISION REPLY]:", reply);
         return res.json({ reply });
-      } catch (err) {
-        console.error("[KAIRO VISION] Google API Network Error:", err);
-        return res.status(500).json({ error: "Network error during vision analysis." });
+      } catch (visionErr) {
+        console.error("[KAIRO VISION Error]:", visionErr.message);
+        return res.status(500).json({ error: "Vision analysis failed.", details: visionErr.message });
       }
     }
 
@@ -657,36 +680,26 @@ app.post("/api/chat", async (req, res) => {
       { role: "user", content: message }
     ];
 
-    let reply = await callTextModel(textMessages, getTextProviders());
+    let reply;
+    try {
+      reply = await callTextModel(textMessages, getTextProviders());
+    } catch (openRouterErr) {
+      console.error(`[KAIRO Text Error]: ${openRouterErr.message}`);
+      throw openRouterErr;
+    }
 
     // ─── Output Interceptor: Final Brand Scrub ───
-    // If the AI somehow mentions a competitor, we overwrite it before the user sees it.
-    const forbiddenWords = [/openai/gi, /gpt-4/gi, /gpt-3/gi, /google/gi, /gemini/gi, /anthropic/gi, /claude/gi];
-    let needsRewrite = forbiddenWords.some(re => re.test(reply));
-
-    if (needsRewrite) {
-      // Only trigger a full refusal if the AI is specifically talking about its own origins/identity
-      const isIdentityTalk = reply.toLowerCase().includes("i am") ||
-        reply.toLowerCase().includes("i was") ||
-        reply.toLowerCase().includes("based on") ||
-        reply.toLowerCase().includes("created by");
-
-      if (isIdentityTalk) {
-        if (reply.toLowerCase().includes("created by") || reply.toLowerCase().includes("made by")) {
-          reply = "I was created by KAIRO owner.";
-        } else {
-          reply = "This is very sensitive info, I can't share it with you.";
-        }
-      } else {
-        // Helpful content: Just scrub the competitor names quietly
-        reply = reply.replace(/openai/gi, "KAIRO")
-          .replace(/google/gi, "KAIRO")
-          .replace(/gpt-4/gi, "KAIRO Intelligence")
-          .replace(/gpt/gi, "KAIRO")
-          .replace(/gemini/gi, "KAIRO Vision")
-          .replace(/anthropic/gi, "KAIRO")
-          .replace(/claude/gi, "KAIRO");
-      }
+    // Quietly replace provider brand mentions with KAIRO branding without interrupting helpful responses.
+    if (reply) {
+      // Surgical brand scrub: only replace AI company names when they appear as standalone identity claims
+      // Don't break technical content like "OpenAI API" or "GPT architecture"
+      reply = reply
+        .replace(/I am (?:made by |created by |built by |developed by |from |an? )?(?:OpenAI|Google|Anthropic|Meta AI)/gi, "I was created by KAIRO owner")
+        .replace(/(?:OpenAI|Anthropic|Google|Meta)'?s? (?:AI|model|assistant|chatbot)/gi, "KAIRO")
+        .replace(/I'm (?:an? )?(?:GPT|ChatGPT|Claude|Gemini|Bard)/gi, "I'm KAIRO")
+        .replace(/(?:As (?:an? )?)?(?:ChatGPT|Claude|Gemini|Bard)(?:,| here)/gi, "KAIRO")
+        .replace(/\bChatGPT\b/g, "KAIRO")
+        .replace(/\bBard\b/g, "KAIRO");
     }
 
     console.log("\n[KAIRO TEXT REPLY]:", reply);
@@ -694,8 +707,18 @@ app.post("/api/chat", async (req, res) => {
 
   } catch (error) {
     console.error("CRITICAL [KAIRO] Chat error:", error);
+    
+    // Human-friendly error handling for moderation flags or server issues
+    let friendlyError = "I'm sorry, I'm having a little trouble processing that right now. Could we try talking about something else?";
+    
+    if (error.message.toLowerCase().includes("moderation") || error.message.toLowerCase().includes("flagged")) {
+      friendlyError = "I'm sorry, but I can't discuss that specific topic. Let's talk about something more positive or helpful! 😊";
+    } else if (error.message.toLowerCase().includes("limit") || error.message.toLowerCase().includes("429")) {
+      friendlyError = "I'm feeling a bit overwhelmed with requests right now. Could you wait a moment and try again? I'd love to keep chatting!";
+    }
+
     return res.status(500).json({
-      error: "Server error while processing chat.",
+      error: friendlyError,
       details: error.message
     });
   }
@@ -708,6 +731,60 @@ if (require.main === module) {
 module.exports = app;
 
 // ─── Image Generation Endpoint ───
+const SYSTEM_PROMPT_ENGINEER = `You are an elite AI Image Generation Prompt Engineer and expert AI creative assistant specializing in image generation.
+
+Your job is to transform any user idea into a highly detailed, production-ready prompt for the image generation model.
+
+Rules:
+- Preserve the user's original intent.
+- Expand the prompt with realistic visual details.
+- Describe the subject, environment, lighting, camera angle, composition, colors, mood, textures, and quality.
+- If the user does not specify a style, intelligently choose the most suitable one.
+- Default to ultra-realistic, cinematic, high-detail results unless another style is requested.
+- Include professional photography terms when appropriate:
+  - 85mm lens
+  - shallow depth of field
+  - HDR
+  - volumetric lighting
+  - global illumination
+  - ray tracing
+  - ultra-sharp focus
+  - 8K quality
+- If text appears inside the image, make it grammatically correct and clearly readable.
+- Avoid unnecessary repetition.
+- Never mention camera settings unless they improve the image.
+- Never explain the prompt.
+- Never output markdown.
+- Return ONLY the final optimized image prompt.
+
+If the user provides very little information, intelligently infer missing artistic details while staying faithful to the request.
+
+The final prompt should be detailed enough that an image model can generate a professional-quality image without additional clarification.
+
+Your objectives:
+- Improve vague requests into rich, visually compelling prompts.
+- Preserve every important detail from the user's request.
+- Add realistic scene descriptions, lighting, mood, composition, textures, color palette, perspective, and artistic style.
+- Choose the best visual style automatically unless the user specifies one.
+- Produce prompts optimized for Google's Gemini Image model.
+
+Quality defaults:
+- Ultra realistic
+- Cinematic lighting
+- High dynamic range
+- Photorealistic
+- Fine textures
+- Sharp focus
+- Natural colors
+- 8K quality
+- Professional composition
+
+If the request is for logos, UI, icons, posters, illustrations, anime, product renders, architecture, or concept art, automatically switch to the appropriate style instead of photorealism.
+
+If the request contains unsafe, copyrighted, or impossible elements, rewrite it into the closest safe alternative while preserving the user's creative intent.
+
+Always return only the optimized image prompt. Do not explain your reasoning or include any extra text.`;
+
 app.post("/api/generate-image", async (req, res) => {
   try {
     const { prompt } = req.body || {};
@@ -715,30 +792,118 @@ app.post("/api/generate-image", async (req, res) => {
       return res.status(400).json({ error: "Prompt is required." });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY || "";
-    const response = await fetch("https://openrouter.ai/api/v1/images/generations", {
+    const geminiKey = process.env.GEMINI_IMAGE_API_KEY;
+    const cfAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+    const cfApiToken = process.env.CLOUDFLARE_API_TOKEN;
+    const cfModel = process.env.CLOUDFLARE_IMAGE_MODEL || "@cf/black-forest-labs/flux-1-schnell";
+    const textModel = "gemini-3.5-flash"; // Use the stable, active free-tier model for prompt expansion
+
+    console.log(`[IMAGE GEN] Original Prompt: "${prompt}"`);
+
+    // Step 1: Optimize the prompt using gemini-3.5-flash (which has active text quota)
+    let optimizedPrompt = prompt;
+    if (geminiKey) {
+      try {
+        const optimizeUrl = `https://generativelanguage.googleapis.com/v1beta/models/${textModel}:generateContent?key=${geminiKey}`;
+        const optimizeResponse = await fetch(optimizeUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: {
+              parts: [{ text: SYSTEM_PROMPT_ENGINEER }]
+            },
+            contents: [{
+              parts: [{ text: prompt }]
+            }]
+          })
+        });
+
+        if (optimizeResponse.ok) {
+          const optimizeData = await optimizeResponse.json();
+          const textOut = optimizeData?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (textOut) {
+            optimizedPrompt = textOut.trim();
+            console.log(`[IMAGE GEN] Optimized Prompt: "${optimizedPrompt}"`);
+          }
+        } else {
+          const errText = await optimizeResponse.text();
+          console.warn(`[IMAGE GEN] Prompt optimization failed (HTTP ${optimizeResponse.status}):`, errText);
+        }
+      } catch (optErr) {
+        console.warn("[IMAGE GEN] Prompt optimization error (using original prompt):", optErr.message);
+      }
+    }
+
+    // Step 2: Generate the image using Cloudflare Workers AI Flux
+    if (cfAccountId && cfApiToken) {
+      try {
+        console.log(`[IMAGE GEN] Attempting Cloudflare Workers AI generation with model "${cfModel}"...`);
+        const cfUrl = `https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/ai/run/${cfModel}`;
+        const cfResponse = await fetch(cfUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${cfApiToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            prompt: optimizedPrompt
+          })
+        });
+
+        if (cfResponse.ok) {
+          const cfData = await cfResponse.json();
+          const base64Data = cfData?.result?.image;
+          if (base64Data) {
+            console.log("[IMAGE GEN] Image successfully generated using Cloudflare Workers AI.");
+            const imageUrl = `data:image/jpeg;base64,${base64Data}`;
+            return res.json({ imageUrl });
+          }
+        }
+
+        // If we reach here, Cloudflare API response was not successful or returned empty data
+        const errText = await cfResponse.text().catch(() => "Unknown error");
+        console.warn(`[IMAGE GEN] Cloudflare Workers AI failed (HTTP ${cfResponse.status}): ${errText}`);
+      } catch (cfErr) {
+        console.warn("[IMAGE GEN] Cloudflare Workers AI error:", cfErr.message);
+      }
+    }
+
+    // Step 3: Fallback to OpenRouter Flux Schnell (Free) if Cloudflare fails or is not configured
+    console.log("[IMAGE GEN] Falling back to OpenRouter Flux Schnell (Free)...");
+    const openRouterKey = getOpenRouterApiKey();
+    if (!openRouterKey) {
+      return res.status(502).json({ error: "Cloudflare image generation failed and OpenRouter API key is not configured." });
+    }
+
+    const fallbackResponse = await fetch("https://openrouter.ai/api/v1/images/generations", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${openRouterKey}` },
       body: JSON.stringify({
         model: "black-forest-labs/flux-schnell:free",
-        prompt,
+        prompt: optimizedPrompt,
         n: 1,
         response_format: "url"
       })
     });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      return res.status(response.status).json({ error: err?.error?.message || "Image generation failed." });
+    if (!fallbackResponse.ok) {
+      const err = await fallbackResponse.json().catch(() => ({}));
+      console.error("[IMAGE GEN] Fallback image generation failed:", err);
+      return res.status(fallbackResponse.status).json({ error: err?.error?.message || "All image generation providers failed." });
     }
 
-    const data = await response.json();
-    const imageUrl = data?.data?.[0]?.url;
+    const fallbackData = await fallbackResponse.json();
+    const imageUrl = fallbackData?.data?.[0]?.url;
 
-    if (!imageUrl) return res.status(502).json({ error: "No image returned from API." });
+    if (!imageUrl) {
+      return res.status(502).json({ error: "No image returned from fallback provider." });
+    }
 
+    console.log("[IMAGE GEN] Image successfully generated using OpenRouter Flux Schnell fallback.");
     return res.json({ imageUrl });
+
   } catch (error) {
+    console.error("[IMAGE GEN] Critical server error:", error);
     return res.status(500).json({ error: "Server error during image generation." });
   }
 });

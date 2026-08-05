@@ -227,33 +227,9 @@ async function onSignInSuccess(user, isNewUser = false, forceVerified = false) {
 
   clearAuthErrors();
 
-  // ── EMAIL VERIFICATION GATE (ONLY FOR NEW USERS) ──
+  // ── EMAIL VERIFICATION GATE BYPASSED ──
   // 1) Pull full Firestore data first
   const firestoreData = await fetchUserFromFirestore(user);
-
-  // LOGIC: 
-  // - If forceVerified is true (just finished OTP), they are good.
-  // - If they ALREADY HAVE a profile in Firestore, they are an "Old User" -> Let them in.
-  // - If they signed in via Google/Apple, skip verification (Social Auth).
-  // - ONLY new email/password sign-ups must verify.
-  const isSocial = user.providerData?.some(p => p.providerId !== 'password');
-  const isVerified = forceVerified || !!firestoreData || isSocial;
-
-  if (!isVerified) {
-    console.log("[KAIRO Auth] New user (no profile) detected — enforcing OTP.");
-
-    // Send OTP only if they haven't just come from a failed verify attempt
-    try {
-      await fetch("/api/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email })
-      });
-    } catch (e) { }
-
-    showVerifyScreen(user);
-    return;
-  }
 
   // 2) Save / update profile in Firestore (already have data, but merge new login time)
   await saveUserToFirestore(user);
@@ -313,18 +289,6 @@ onAuthStateChanged(auth, async (user) => {
 
     // Fetch Firestore data
     const firestoreData = await fetchUserFromFirestore(user).catch(() => null);
-
-    // If they have a profile OR are a social user (Google/Apple), they are "Verified"
-    const isSocial = user.providerData?.some(p => p.providerId !== 'password');
-    const isVerified = !!firestoreData || isSocial;
-
-    // ── GATE: block only if truly new user with no profile ──
-    if (!isVerified) {
-      console.warn("[KAIRO Auth] New user session with no profile — blocking.");
-      if (window.__kairoHideSplash) window.__kairoHideSplash();
-      showVerifyScreen(user.email);
-      return;
-    }
 
     console.log("[KAIRO Auth] Session restored (verified) for:", user.email);
 
@@ -562,24 +526,14 @@ export async function firebaseSignIn(email, password) {
 export async function firebaseSignUp(name, email, password) {
   clearAuthErrors();
   const btn = document.querySelector("#signup-form .cta-button[type='submit']");
-  setButtonLoading(btn, true, "Sending...");
+  setButtonLoading(btn, true, "Signing up...");
   try {
-    // ── DELAYED CREATION FLOW ──
-    // We store info and ONLY create in Firebase AFTER OTP success
-    pendingSignUpData = { name, email, password };
-
-    const otpRes = await fetch("/api/send-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email })
-    });
-    if (!otpRes.ok) {
-      const data = await otpRes.json();
-      throw new Error(data.error || "Failed to send OTP.");
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = credential.user;
+    if (name) {
+      await updateProfile(user, { displayName: name });
     }
-    console.log("[KAIRO Auth] OTP sent to:", email);
-    showVerifyScreen(email);
-    if (window.__kairoHideSplash) window.__kairoHideSplash();
+    await onSignInSuccess(user, true);
   } catch (err) {
     const msg = friendlyError(err.code);
     if (msg) showAuthError(msg);

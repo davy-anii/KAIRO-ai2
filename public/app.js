@@ -124,7 +124,8 @@ const state = {
   profile: readProfile(),
   chatHistory: readHistory(),
   currentSessionId: null,
-  currentMessages: []
+  currentMessages: [],
+  imageGenerationCount: parseInt(sessionStorage.getItem("kairo_image_generation_count") || "0", 10)
 };
 
 function readProfile() {
@@ -558,69 +559,181 @@ function clearChatStream() {
   chatStreamEl.innerHTML = "";
 }
 
-// ─── Lightweight Markdown → safe HTML renderer ───
+// ─── Premium Markdown → safe HTML renderer (ChatGPT quality) ───
 function parseMarkdown(raw) {
   if (!raw) return "";
 
-  // 1. Escape raw HTML first to prevent XSS
-  const escaped = raw
+  // 1. Extract fenced code blocks FIRST (before HTML escaping)
+  const codeBlocks = [];
+  const withCodePlaceholders = raw.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const idx = codeBlocks.length;
+    codeBlocks.push({ lang: lang || "", code });
+    return `%%CODEBLOCK_${idx}%%`;
+  });
+
+  // 2. Escape raw HTML to prevent XSS
+  const escaped = withCodePlaceholders
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
   const lines = escaped.split("\n");
-  const out   = [];
-  let inList  = false;
+  const out = [];
+  let inList = false;
+  let listType = ""; // "ul" or "ol"
+  let inTable = false;
+  let tableHeaderParsed = false;
+  let inBlockquote = false;
 
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
 
-    // Headings: ### or ## or #
-    const headingMatch = line.match(/^(#{1,4})\s+(.+)/);
-    if (headingMatch) {
-      if (inList) { out.push("</ul>"); inList = false; }
-      const level = Math.min(headingMatch[1].length + 3, 6); // h4–h6
-      out.push(`<h${level} class="md-heading">${inlineFormat(headingMatch[2])}</h${level}>`);
+    // ── Code block placeholder ──
+    const codeMatch = line.trim().match(/^%%CODEBLOCK_(\d+)%%$/);
+    if (codeMatch) {
+      closeOpenBlocks();
+      const block = codeBlocks[parseInt(codeMatch[1])];
+      const escapedCode = block.code
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .trimEnd();
+      const langLabel = block.lang ? `<span class="md-code-lang">${block.lang}</span>` : "";
+      out.push(`<div class="md-code-block">${langLabel}<pre><code>${escapedCode}</code></pre></div>`);
       continue;
     }
 
-    // Bullet list: lines starting with - * • ·
-    const bulletMatch = line.match(/^[\-\*•·]\s+(.+)/);
+    // ── Horizontal rule: --- or *** or ___ ──
+    if (/^(\s*[-*_]\s*){3,}$/.test(line.trim()) && !inTable) {
+      closeOpenBlocks();
+      out.push('<hr class="md-hr">');
+      continue;
+    }
+
+    // ── Markdown Table: lines starting and ending with | ──
+    if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
+      if (inList) { closeList(); }
+      if (inBlockquote) { closeBlockquote(); }
+
+      const cells = line.split("|").slice(1, -1).map(c => c.trim());
+      const isSeparator = cells.every(c => /^:?-+:?$/.test(c.replace(/\s+/g, "")));
+      if (isSeparator) {
+        tableHeaderParsed = true;
+        continue;
+      }
+
+      if (!inTable) {
+        out.push('<div class="md-table-wrapper"><table class="md-table">');
+        inTable = true;
+        tableHeaderParsed = false;
+      }
+
+      if (!tableHeaderParsed) {
+        out.push("<thead><tr>" + cells.map(c => `<th>${inlineFormat(c)}</th>`).join("") + "</tr></thead><tbody>");
+      } else {
+        out.push("<tr>" + cells.map(c => `<td>${inlineFormat(c)}</td>`).join("") + "</tr>");
+      }
+      continue;
+    } else if (inTable) {
+      out.push("</tbody></table></div>");
+      inTable = false;
+      tableHeaderParsed = false;
+    }
+
+    // ── Blockquote: > text ──
+    const bqMatch = line.match(/^&gt;\s?(.*)/);
+    if (bqMatch) {
+      if (inList) { closeList(); }
+      if (!inBlockquote) {
+        out.push('<blockquote class="md-blockquote">');
+        inBlockquote = true;
+      }
+      out.push(`<p>${inlineFormat(bqMatch[1])}</p>`);
+      continue;
+    } else if (inBlockquote && line.trim() !== "") {
+      closeBlockquote();
+    }
+
+    // ── Headings: # through #### ──
+    const headingMatch = line.match(/^(#{1,4})\s+(.+)/);
+    if (headingMatch) {
+      closeOpenBlocks();
+      const level = headingMatch[1].length; // 1-4
+      const tag = `h${Math.min(level + 2, 6)}`; // h3-h6
+      out.push(`<${tag} class="md-heading md-h${level}">${inlineFormat(headingMatch[2])}</${tag}>`);
+      continue;
+    }
+
+    // ── Task list: - [x] or - [ ] ──
+    const taskMatch = line.match(/^[-*]\s+\[([ xX])\]\s+(.*)/);
+    if (taskMatch) {
+      if (!inList || listType !== "task") { closeList(); out.push('<ul class="md-task-list">'); inList = true; listType = "task"; }
+      const checked = taskMatch[1].toLowerCase() === "x";
+      out.push(`<li class="md-task-item${checked ? ' is-checked' : ''}"><span class="md-checkbox ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</span>${inlineFormat(taskMatch[2])}</li>`);
+      continue;
+    }
+
+    // ── Bullet list: - or * or • ──
+    const bulletMatch = line.match(/^[-*•·]\s+(.*)/);
     if (bulletMatch) {
-      if (!inList) { out.push("<ul class=\"md-list\">"); inList = true; }
+      if (!inList || listType !== "ul") { closeList(); out.push('<ul class="md-list">'); inList = true; listType = "ul"; }
       out.push(`<li>${inlineFormat(bulletMatch[1])}</li>`);
       continue;
     }
 
-    // Numbered list: lines starting with 1. 2. etc
-    const numMatch = line.match(/^\d+\.\s+(.+)/);
+    // ── Numbered list: 1. 2. etc ──
+    const numMatch = line.match(/^\d+\.\s+(.*)/);
     if (numMatch) {
-      if (inList) { out.push("</ul>"); inList = false; }
-      // Treat numbered items as list items for simplicity
-      out.push(`<ul class="md-list"><li>${inlineFormat(numMatch[1])}</li></ul>`);
+      if (!inList || listType !== "ol") { closeList(); out.push('<ol class="md-ordered-list">'); inList = true; listType = "ol"; }
+      out.push(`<li>${inlineFormat(numMatch[1])}</li>`);
       continue;
     }
 
-    // Close list if non-bullet line
-    if (inList && line.trim() !== "") { out.push("</ul>"); inList = false; }
+    // ── Close list if non-list line ──
+    if (inList && line.trim() !== "") { closeList(); }
 
-    // Blank line → paragraph break
+    // ── Blank line → spacing ──
     if (line.trim() === "") {
-      if (inList) { out.push("</ul>"); inList = false; }
-      out.push("<br>");
-      continue;
+      if (inBlockquote) { closeBlockquote(); }
+      if (inList) { closeList(); }
+      continue; // don't add extra <br>s — paragraph spacing handles it
     }
 
+    // ── Regular paragraph ──
     out.push(`<p class="md-para">${inlineFormat(line)}</p>`);
   }
 
-  if (inList) out.push("</ul>");
+  // Close any open blocks
+  closeOpenBlocks();
+
   return out.join("");
+
+  function closeList() {
+    if (!inList) return;
+    const tag = listType === "ol" ? "ol" : "ul";
+    out.push(`</${tag}>`);
+    inList = false;
+    listType = "";
+  }
+  function closeBlockquote() {
+    if (!inBlockquote) return;
+    out.push("</blockquote>");
+    inBlockquote = false;
+  }
+  function closeOpenBlocks() {
+    closeList();
+    closeBlockquote();
+    if (inTable) { out.push("</tbody></table></div>"); inTable = false; tableHeaderParsed = false; }
+  }
 }
 
-// Inline formatting: bold, italic, inline-code
+// Inline formatting: bold, italic, inline-code, links
 function inlineFormat(text) {
   return text
+    // Inline code FIRST (prevent further formatting inside)
+    .replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
+    // Links: [text](url)
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a class="md-link" href="$2" target="_blank" rel="noopener">$1</a>')
     // Bold+italic: ***text*** or ___text___
     .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
     // Bold: **text** or __text__
@@ -629,13 +742,12 @@ function inlineFormat(text) {
     // Italic: *text* or _text_
     .replace(/\*([^\*]+)\*/g, "<em>$1</em>")
     .replace(/_([^_]+)_/g, "<em>$1</em>")
-    // Inline code: `code`
-    .replace(/`([^`]+)`/g, "<code class=\"md-code\">$1</code>")
-    // Em dash shorthand: --
+    // Em dash shorthand
     .replace(/\s--\s/g, " — ");
 }
 
-function appendChatMessage(message) {
+
+function appendChatMessage(message, { animate = false } = {}) {
   const role = message.role;
   const text = message.text;
 
@@ -672,14 +784,101 @@ function appendChatMessage(message) {
     img.alt = "Generated image";
     img.style.cssText = "width:100%;border-radius:16px;margin-top:6px;display:block;max-height:320px;object-fit:cover;border:2px solid rgba(255,200,0,0.3);";
     content.appendChild(img);
+
+    // Create action container for the download button
+    const actionRow = document.createElement("div");
+    actionRow.style.cssText = "margin-top: 10px; display: flex; justify-content: flex-start;";
+
+    const downloadBtn = document.createElement("button");
+    downloadBtn.className = "cta-button cta-button--outline";
+    downloadBtn.style.cssText = "padding: 6px 14px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; height: auto; margin: 0; width: auto; line-height: 1.2; border-radius: 10px;";
+    downloadBtn.innerHTML = `<i data-lucide="download" style="width: 14px; height: 14px;"></i> Download`;
+
+    // Add spin style dynamically if it doesn't exist
+    if (!document.getElementById("kairo-download-spin-style")) {
+      const styleNode = document.createElement("style");
+      styleNode.id = "kairo-download-spin-style";
+      styleNode.textContent = `
+        @keyframes kairoSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .kairo-spin {
+          animation: kairoSpin 1s linear infinite;
+        }
+      `;
+      document.head.appendChild(styleNode);
+    }
+
+    // Download handler
+    downloadBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      downloadBtn.disabled = true;
+      downloadBtn.innerHTML = `<i data-lucide="loader-2" class="kairo-spin" style="width: 14px; height: 14px;"></i> Downloading...`;
+      if (window.lucide?.createIcons) window.lucide.createIcons();
+
+      // Dynamic descriptive filename
+      const cleanFilename = text 
+        ? "kairo-" + text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40) + ".png"
+        : "kairo-generated-image.png";
+
+      try {
+        const response = await fetch(message.generatedImageUrl);
+        const blob = await response.blob();
+        const localUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = localUrl;
+        a.download = cleanFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(localUrl);
+      } catch (err) {
+        console.error("Failed to download image via blob:", err);
+        // Fallback: direct download link trigger
+        const a = document.createElement("a");
+        a.href = message.generatedImageUrl;
+        a.target = "_blank";
+        a.download = cleanFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } finally {
+        downloadBtn.disabled = false;
+        downloadBtn.innerHTML = `<i data-lucide="download" style="width: 14px; height: 14px;"></i> Download`;
+        if (window.lucide?.createIcons) window.lucide.createIcons();
+      }
+    });
+
+    actionRow.appendChild(downloadBtn);
+    content.appendChild(actionRow);
+
+    if (window.lucide?.createIcons) {
+      setTimeout(() => window.lucide.createIcons(), 50);
+    }
+
     if (text) {
       const caption = document.createElement("p");
       caption.style.cssText = "margin:8px 0 0;font-size:0.88rem;opacity:0.75;";
       caption.textContent = text;
       content.appendChild(caption);
     }
+  } else if (role === "bot" && animate) {
+    // Animated reveal: parse markdown, then reveal elements one by one
+    const parsedHTML = parseMarkdown(text);
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = parsedHTML;
+    const elements = [...tempDiv.children];
+
+    // If no block elements, treat entire content as one block
+    if (elements.length === 0) {
+      content.innerHTML = parsedHTML;
+      content.style.animation = "fadeIn 0.3s ease";
+    } else {
+      revealElements(content, elements, chatStreamEl);
+    }
   } else if (role === "bot") {
-    // Bot messages: render markdown as HTML
+    // Bot messages: render markdown as HTML (no animation — history replay)
     content.innerHTML = parseMarkdown(text);
   } else {
     // User messages: plain text (safe, no markdown)
@@ -692,12 +891,32 @@ function appendChatMessage(message) {
   meta.innerHTML = `<span>${formatTime(new Date(message.time || Date.now()))}</span>`;
   messageNode.appendChild(meta);
 
-
-
   chatStreamEl.appendChild(messageNode);
   chatStreamEl.scrollTop = chatStreamEl.scrollHeight;
   updateHomeView();
 }
+
+// Progressive element reveal (ChatGPT-style typing effect)
+function revealElements(container, elements, scrollTarget) {
+  let i = 0;
+  const delay = 40; // ms between each element
+
+  function showNext() {
+    if (i >= elements.length) return;
+    const el = elements[i];
+    el.classList.add("md-reveal");
+    container.appendChild(el);
+    // Trigger reflow for animation
+    void el.offsetHeight;
+    el.classList.add("md-reveal--visible");
+    scrollTarget.scrollTop = scrollTarget.scrollHeight;
+    i++;
+    setTimeout(showNext, delay);
+  }
+
+  showNext();
+}
+
 
 function createEmptyState(text) {
   return `<div class="activity-item"><p>${text}</p></div>`;
@@ -1041,13 +1260,31 @@ function buildModelHistory() {
 
   const allMessages = [...pastMessages, ...state.currentMessages]
     .filter((msg) => msg.role === "user" || msg.role === "bot");
+
+  // ─── Crisis Sanitizer ───
+  // 6. CRISIS GUARD: Multilingual Suicide Prevention (The "Humanise Brain" Logic)
+  const crisisKeywords = [
+    "suicide", "kill myself", "want to die", "end my life", "self harm", "suicidal",
+    "আত্মহত্যা", "মরতে চাই", "মরে যাব", // Bengali
+    "आत्महत्या", "मरना चाहता हूँ", "मर जाना चाहता हूँ" // Hindi
+  ];
+
+  const sanitizedMessages = allMessages.map(msg => {
+    if (msg.role === "user" && crisisKeywords.some(word => msg.text.toLowerCase().includes(word))) {
+      return { 
+        ...msg, 
+        text: "[The user expressed deep emotional distress. I must respond with maximum empathy, listen patiently, and provide supportive, human-like comfort without sounding like a machine.]" 
+      };
+    }
+    return msg;
+  });
   
   // Remove the very last message since it's the current user prompt being sent
-  if (allMessages.length > 0 && allMessages[allMessages.length - 1].role === "user") {
-    allMessages.pop();
+  if (sanitizedMessages.length > 0 && sanitizedMessages[sanitizedMessages.length - 1].role === "user") {
+    sanitizedMessages.pop();
   }
 
-  return allMessages
+  return sanitizedMessages
     .slice(-10)
     .map((msg) => ({
       role: msg.role === "bot" ? "assistant" : "user",
@@ -1264,6 +1501,38 @@ async function handleImageInputChange(mode) {
 imageInputEl.addEventListener("change", () => handleImageInputChange("chat"));
 homeImageInputEl?.addEventListener("change", () => handleImageInputChange("home"));
 
+// ─── Composer options dropdown menu ───
+const menuBtn = document.getElementById("composer-menu-btn");
+const dropdownMenu = document.getElementById("composer-dropdown-menu");
+const genImgBtn = document.getElementById("menu-generate-image-btn");
+
+if (menuBtn && dropdownMenu) {
+  menuBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dropdownMenu.classList.toggle("is-hidden");
+    menuBtn.classList.toggle("is-active");
+  });
+
+  document.addEventListener("click", () => {
+    dropdownMenu.classList.add("is-hidden");
+    menuBtn.classList.remove("is-active");
+  });
+
+  if (genImgBtn && messageEl) {
+    genImgBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      dropdownMenu.classList.add("is-hidden");
+      menuBtn.classList.remove("is-active");
+      
+      messageEl.value = "generate an image of ";
+      messageEl.focus();
+      // Move cursor to the end of the text
+      messageEl.selectionStart = messageEl.selectionEnd = messageEl.value.length;
+      autoResizeTextarea(messageEl);
+    });
+  }
+}
+
 sttBtnEl?.addEventListener("click", () => startSpeechToText(messageEl, sttBtnEl));
 homeSttBtnEl?.addEventListener("click", () => startSpeechToText(homeMessageEl, homeSttBtnEl));
 
@@ -1333,6 +1602,26 @@ async function submitComposer(mode) {
   if (mode === "chat") imageInputEl.value = "";
   renderImagePreview(mode);
 
+  // ─── Frontend Crisis Guard: Zero Latency Empathy ───
+  const lowerMsg = message.toLowerCase();
+  const crisisKeywords = ["suicide", "kill myself", "want to die", "end my life", "self harm", "suicidal", "আত্মহত্যা", "মরতে চাই", "মরে যাব", "आत्महत्या", "मरना चाहता हूँ"];
+  
+  if (crisisKeywords.some(word => lowerMsg.includes(word))) {
+    setTimeout(() => {
+      const botMsg = {
+        role: "bot",
+        text: "Hey... I hear you, and I want you to know that I'm right here with you. You don't have to go through this alone. ❤️\n\nPlease talk to me — tell me what's going on. I'm not going anywhere.\n\nAnd if you ever feel like you need to talk to someone who can really help, these people are amazing and available 24/7:\n\n📞 **Aasra (24/7)**: 9820466726\n📞 **Vandrevala Foundation**: 9999 666 555\n📞 **iCall**: 022-25521111\n📞 **NIMHANS**: 080-46110007\n\nBut right now, I'm here too. What's making you feel this way? 💛",
+        time: Date.now()
+      };
+      state.currentMessages.push(botMsg);
+      appendChatMessage(botMsg);
+      persistCurrentSession();
+      if (state.autoSpeakEnabled) speakText(botMsg.text);
+      sendButtonEl.disabled = false;
+    }, 400);
+    return;
+  }
+
   const typingNode = document.createElement("article");
   typingNode.className = "chat-message chat-message--bot";
   typingNode.innerHTML = `
@@ -1356,12 +1645,48 @@ async function submitComposer(mode) {
     const data = await response.json();
     typingNode.remove();
 
-    let reply = response.ok ? data.reply : (data.details ? `${data.error} (${data.details})` : (data.error || "Something went wrong."));
+    let reply = "";
+    if (response.ok) {
+      reply = data.reply;
+    } else {
+      // Human-friendly error translation
+      const errMsg = (data.error || "").toLowerCase();
+      const detMsg = (data.details || "").toLowerCase();
+      
+      if (errMsg.includes("moderation") || detMsg.includes("moderation") || detMsg.includes("flagged") || detMsg.includes("self-harm")) {
+        reply = "I'm here with you. I really want to understand what you're going through. Can you tell me a bit more about how you're feeling right now? 💛";
+      } else if (errMsg.includes("limit") || detMsg.includes("limit") || response.status === 429) {
+        reply = "I need a tiny moment to catch my breath, but I'm not leaving! Try sending that again in a few seconds? 😊";
+      } else {
+        reply = "I'm having a little trouble connecting right now, but I'm still here for you! Could we try that again?";
+      }
+    }
+    sendButtonEl.disabled = false;
 
     // Check if bot wants to generate an image
     const imgMatch = reply.match(/\[GENERATE_IMAGE:\s*(.+?)\]/i);
     if (imgMatch) {
       const imagePrompt = imgMatch[1].trim();
+
+      if (state.imageGenerationCount === undefined) {
+        state.imageGenerationCount = parseInt(sessionStorage.getItem("kairo_image_generation_count") || "0", 10);
+      }
+
+      if (state.imageGenerationCount >= 2) {
+        const botMsg = {
+          role: "bot",
+          text: `Image Credits: 2/2\n\nYou've reached your free image generation limit (2/2). Upgrade your plan or wait until your image credits reset to generate more images.`,
+          time: Date.now(),
+          imageAttached: false
+        };
+        state.currentMessages.push(botMsg);
+        appendChatMessage(botMsg, { animate: true });
+        persistCurrentSession();
+        if (state.autoSpeakEnabled) speakText(botMsg.text);
+        return;
+      }
+
+      const currentCreditsText = `Image Credits: ${state.imageGenerationCount}/2`;
 
       // Show a "generating" message
       const genNode = document.createElement("article");
@@ -1383,35 +1708,41 @@ async function submitComposer(mode) {
         genNode.remove();
 
         if (imgResponse.ok && imgData.imageUrl) {
+          state.imageGenerationCount += 1;
+          sessionStorage.setItem("kairo_image_generation_count", state.imageGenerationCount.toString());
+
           const botMsg = {
             role: "bot",
-            text: `Here's your image of: ${imagePrompt}`,
+            text: `${currentCreditsText}\n\nHere's your image of: ${imagePrompt}`,
             time: Date.now(),
             imageAttached: false,
             generatedImageUrl: imgData.imageUrl
           };
           state.currentMessages.push(botMsg);
           appendChatMessage(botMsg);
+          persistCurrentSession();
         } else {
           const botMsg = {
             role: "bot",
-            text: `Sorry, I couldn't generate that image. ${imgData.error || ""} Try describing it differently!`,
+            text: `${currentCreditsText}\n\nSorry, I couldn't generate that image. ${imgData.error || ""} Try describing it differently!`,
             time: Date.now(),
             imageAttached: false
           };
           state.currentMessages.push(botMsg);
           appendChatMessage(botMsg);
+          persistCurrentSession();
         }
       } catch {
         genNode.remove();
         const botMsg = {
           role: "bot",
-          text: "Network error while generating image. Please try again.",
+          text: `${currentCreditsText}\n\nNetwork error while generating image. Please try again.`,
           time: Date.now(),
           imageAttached: false
         };
         state.currentMessages.push(botMsg);
         appendChatMessage(botMsg);
+        persistCurrentSession();
       }
     } else {
       const botMsg = {
@@ -1421,7 +1752,7 @@ async function submitComposer(mode) {
         imageAttached: false
       };
       state.currentMessages.push(botMsg);
-      appendChatMessage(botMsg);
+      appendChatMessage(botMsg, { animate: true });
 
       if (response.ok && state.autoSpeakEnabled) {
         speakText(reply);

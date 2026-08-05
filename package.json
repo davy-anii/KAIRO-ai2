@@ -6,7 +6,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "bun --watch server.js"
   },
   "engines": {
     "node": ">=18"
