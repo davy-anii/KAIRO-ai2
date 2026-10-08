@@ -307,11 +307,16 @@ const getModelChain = () => {
     Authorization: `Bearer ${apiKey}`
   };
 
-  return [
+  const chain = [];
+  if (process.env.OPENAI_MODEL) {
+    chain.push({ url: base, model: process.env.OPENAI_MODEL, headers });
+  }
+  chain.push(
     { url: base, model: "openai/gpt-oss-20b:free", headers },
     { url: base, model: "google/gemma-4-26b-a4b-it:free", headers },
     { url: base, model: "google/gemma-4-31b-it:free", headers }
-  ];
+  );
+  return chain;
 };
 const getTextProviders = () => getModelChain();
 
@@ -323,12 +328,17 @@ const getVisionProviders = () => {
     Authorization: `Bearer ${apiKey}`
   };
 
-  return [
+  const chain = [];
+  if (process.env.OPENAI_MODEL) {
+    chain.push({ url: base, model: process.env.OPENAI_MODEL, headers });
+  }
+  chain.push(
     { url: base, model: "openai/gpt-oss-20b:free", headers },
     { url: base, model: "google/gemma-4-26b-a4b-it:free", headers },
     { url: base, model: "google/gemma-4-31b-it:free", headers },
     { url: base, model: "nvidia/nemotron-nano-12b-v2-vl:free", headers }
-  ];
+  );
+  return chain;
 };
 
 // ─── Vision system prompt ───
